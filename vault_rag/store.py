@@ -115,6 +115,11 @@ class SearchHit:
     # raridade do termo: 'receita' casa em dezenas e e palavra generica que
     # existe com outro sentido; 'PMTiles' casa em poucos e e identificador.
     fts_total: int | None = None
+    # Nota de 0 a 10 dada pelo juiz local quando a faixa saiu media. None
+    # significa que o reranker nao rodou: desligado, indisponivel, fora da
+    # faixa media, ou alem do rerank_top. E a unica medida do pipeline que
+    # leu pergunta e trecho JUNTOS.
+    rerank: int | None = None
     context_text: str = ""
 
 

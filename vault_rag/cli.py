@@ -519,9 +519,12 @@ def cmd_testar_confianca(args) -> int:
         if not hits:
             return "vazio", None, None
         faixa = hits[0].confianca or "alta"
-        sim = hits[0].top_sim_global
+        # MAIOR similaridade entre os hits, nao a do primeiro: o reranker
+        # reordena, e ler hits[0] faria a coluna mudar de valor entre rodadas
+        # sem que nada tivesse mudado no indice.
+        sim = max((h.vec_score for h in hits if h.vec_score is not None), default=None)
         if sim is None:
-            sim = next((h.vec_score for h in hits if h.vec_score is not None), None)
+            sim = hits[0].top_sim_global
         pos = None
         if alvo:
             for i, h in enumerate(hits, 1):
@@ -530,7 +533,10 @@ def cmd_testar_confianca(args) -> int:
                     break
         return faixa, sim, pos
 
-    print(f"confiavel >= {cfg.sim_confiavel} · duvidoso < {cfg.sim_duvidoso}\n")
+    juiz = (f"juiz {cfg.rerank_model} na faixa media, top {cfg.rerank_top}"
+            if cfg.rerank_model else "sem juiz (so similaridade)")
+    print(f"confiavel >= {cfg.sim_confiavel} · duvidoso < {cfg.sim_duvidoso}"
+          f" · {juiz}\n")
 
     contagem = {"legitima": {}, "ruido": {}}
     graves = []

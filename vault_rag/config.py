@@ -61,6 +61,22 @@ class Config:
     min_score: float = 0.3
     sim_confiavel: float = 0.60
     sim_duvidoso: float = 0.43
+
+    # Reranker. Vazio = desligado, e a busca se comporta como antes.
+    # So atua na faixa media: a alta ja e confiavel e a baixa ja diz nao.
+    rerank_model: str = ""
+    # Corte do trecho enviado ao juiz. 350 rebaixou uma resposta certa de 6
+    # para 3 na medicao de 15/09; 600 manteve a nota sem custo perceptivel.
+    rerank_chars: int = 600
+    # Quantos trechos julgar. Em CPU pura cada um custa 0,3 a 1,7 s.
+    rerank_top: int = 5
+    rerank_timeout: float = 30.0
+    # MEDIA das notas que promove a faixa media para alta, e media que a
+    # rebaixa para baixa. Medido em 15/09, 8 legitimas contra 8 de ruido:
+    # media de legitima vai de 1,4 a 6,4 e media de ruido vai de 1,0 a 3,2.
+    # O maximo NAO separa (7 de 8 de cada lado tiram >= 6), por isso e media.
+    rerank_promove: float = 3.4
+    rerank_rebaixa: float = 1.2
     # Descricao do vault para o modelo. Vazio = gerada lendo o indice.
     instructions: str = ""
     expand_chars: int = 4000
@@ -117,6 +133,12 @@ def load_config(overrides: dict | None = None) -> Config:
         "min_score",
         "sim_confiavel",
         "sim_duvidoso",
+        "rerank_model",
+        "rerank_chars",
+        "rerank_top",
+        "rerank_timeout",
+        "rerank_promove",
+        "rerank_rebaixa",
         "instructions",
         "expand_chars",
     ):

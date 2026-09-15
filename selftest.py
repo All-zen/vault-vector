@@ -384,6 +384,64 @@ def main() -> int:
         segunda = index_vault(cfg, verbose=False)
         check("segunda indexacao e incremental", segunda.indexed <= 3,
               f"reindexou {segunda.indexed}")
+
+        # ---------------------------------------------------- reranker local
+        # Sem Ollama de proposito: o que precisa de teste aqui e a decisao de
+        # faixa e a reordenacao, nao a qualidade do modelo. Qualidade se mede
+        # com ferramentas/medir_rerank.py, contra o vault de verdade.
+        from vault_rag.store import SearchHit as _SH
+
+        original_juiz = api.OllamaJudge
+
+        class _JuizFalso:
+            def __init__(self, notas):
+                self.notas = list(notas)
+
+            def __call__(self, *a, **k):
+                return self
+
+            def nota(self, query, texto):
+                return self.notas.pop(0) if self.notas else None
+
+        def _hits():
+            return [
+                _SH(chunk_id=i, path=f"n{i}.md", heading_path="h", text=f"t{i}",
+                    start_line=1, score=1.0 - i * 0.1, vec_rank=i, fts_rank=i,
+                    vec_score=0.45, confianca="media")
+                for i in range(3)
+            ]
+
+        cfg.rerank_model = "juiz-falso"
+        try:
+            for nome, notas, faixa_esp, ordem_esp in [
+                # A decisao e pela MEDIA, nao pelo maximo: com 5 trechos e um
+                # juiz generoso, ate pergunta fora do dominio acha um trecho
+                # que tira 6, e o maximo deixa de separar. Medido em 15/09.
+                ("rerank promove pela media alta", [3, 4, 5], "alta", [5, 4, 3]),
+                ("uma nota alta sozinha NAO promove", [8, 0, 0], "media", [8, 0, 0]),
+                ("rerank rebaixa quando a media e baixa", [0, 0, 1], "baixa", [1, 0, 0]),
+                ("media no meio da escala continua media", [2, 3, 3], "media", [3, 3, 2]),
+                ("juiz mudo nao muda a faixa", [None, None, None], "media", [None] * 3),
+                ("juiz parcial decide com o que respondeu", [None, 7, 2], "alta", [7, 2, None]),
+            ]:
+                api.OllamaJudge = _JuizFalso(notas)
+                hits = _hits()
+                faixa = api.aplicar_rerank(cfg, "pergunta", hits)
+                check(nome, faixa == faixa_esp and [h.rerank for h in hits] == ordem_esp,
+                      f"faixa={faixa} ordem={[h.rerank for h in hits]}")
+
+            # Nota fora da escala e resposta invalida, nao nota alta.
+            from vault_rag.rerank import OllamaJudge as _OJ
+            juiz = _OJ.__new__(_OJ)
+            juiz.max_chars = 600
+            for bruto, esperado in [("7", 7), (" 10 ", 10), ("100", None),
+                                    ("sim", None), ("", None), ("nota: 3", 3)]:
+                juiz._gerar = (lambda b: (lambda *a, **k: b))(bruto)
+                check(f"juiz interpreta {bruto!r} como {esperado}",
+                      juiz.nota("q", "t") == esperado)
+        finally:
+            api.OllamaJudge = original_juiz
+            cfg.rerank_model = ""
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

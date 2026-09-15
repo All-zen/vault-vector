@@ -10,6 +10,7 @@ from pathlib import Path
 from .config import Config
 from .embed import EmbeddingError, OllamaEmbedder
 from .indexer import stale_files
+from .rerank import OllamaJudge
 from .store import SearchHit, Store
 
 HEADING_RE = re.compile(r"^(#{1,6})\s+(.*\S)\s*$")
@@ -85,6 +86,66 @@ def termo_e_raro(total_fts: int | None, total_chunks: int, fracao: float = 0.005
     return (total_fts / total_chunks) <= fracao
 
 
+def aplicar_rerank(cfg: Config, query: str, hits: list[SearchHit]) -> str:
+    """Julga os primeiros trechos com o modelo local e reordena por nota.
+
+    So e chamada na faixa media, que e onde o cosseno nao decide: ruido e
+    pergunta legitima com outro vocabulario ocupam a mesma faixa de
+    similaridade. O juiz le pergunta e trecho juntos, que e a informacao que
+    a similaridade de vetor nao carrega.
+
+    Decide pela MEDIA das notas, nao pelo maximo. Medido em 15/09 com 8
+    perguntas legitimas contra 8 de ruido, 5 trechos julgados em cada:
+
+      estatistica   legitimas          ruidos            separa?
+      maximo        7 de 8 tiram >=6   7 de 8 tiram >=6  NAO
+      media         1,4 a 6,4          1,0 a 3,2         SIM, em 3,3
+
+    O maximo nao separa porque mede o trecho mais sortudo: com cinco
+    tentativas e um juiz generoso, ate pergunta fora do dominio acha um
+    trecho que tira 6. A media mede se o CONJUNTO devolvido tem a ver com a
+    pergunta, que e a coisa que estava sendo perguntada desde o inicio.
+
+    E o mesmo erro do RRF, uma camada acima: la o score media concordancia
+    entre rankers e nao distingue os dois acertando dos dois errando junto;
+    aqui o maximo media um trecho isolado e nao distingue nada.
+
+    Margem medida: maior ruido 3,2 contra menor legitima aprovada 3,4. E
+    fina, e com 8 contra 8 nao da para tratar como definitiva.
+
+    Devolve a faixa nova. Juiz indisponivel devolve a faixa como estava.
+    """
+    juiz = OllamaJudge(
+        cfg.ollama_url,
+        cfg.rerank_model,
+        cfg.rerank_timeout,
+        cfg.rerank_chars,
+        cfg.num_thread,
+    )
+    julgados = hits[: cfg.rerank_top]
+    for hit in julgados:
+        hit.rerank = juiz.nota(query, hit.context_text or hit.text)
+
+    notas = [h.rerank for h in julgados if h.rerank is not None]
+    if not notas:
+        return "media"  # juiz mudo: nada mudou, a ressalva antiga continua
+
+    # Reordena so o que foi julgado. Empate mantem a ordem do RRF, que ja
+    # embute recencia e backlinks; o juiz desempata relevancia, nao o resto.
+    ordenados = sorted(
+        range(len(julgados)),
+        key=lambda i: (-(julgados[i].rerank or -1), i),
+    )
+    hits[: len(julgados)] = [julgados[i] for i in ordenados]
+
+    media = sum(notas) / len(notas)
+    if media >= cfg.rerank_promove:
+        return "alta"
+    if media <= cfg.rerank_rebaixa:
+        return "baixa"
+    return "media"
+
+
 def search(
     cfg: Config,
     query: str,
@@ -148,9 +209,20 @@ def search(
             for hit in hits:
                 hit.confianca = faixa
                 hit.top_sim_global = melhor if faixa != "alta" else None
+
         if expand:
             for hit in hits:
                 hit.context_text = store.expand(hit, cfg.expand_chars)
+
+        # O reranker entra DEPOIS do expand porque julga o texto que o leitor
+        # vai receber, nao o chunk cru embeddado. Julgar coisa diferente da
+        # que sai seria medir outra pergunta.
+        if hits and cfg.rerank_model and hits[0].confianca == "media":
+            nova = aplicar_rerank(cfg, query, hits)
+            for hit in hits:
+                hit.confianca = nova
+                if nova == "alta":
+                    hit.top_sim_global = None
         return hits
     finally:
         store.close()
@@ -261,7 +333,27 @@ def format_hits(hits: list[SearchHit], *, snippet_chars: int = 900) -> str:
     aviso = ""
     faixa = hits[0].confianca
     sim = hits[0].top_sim_global
-    if faixa == "baixa" and sim is not None:
+    # Quando o juiz local rodou, a ressalva muda de dono: quem classificou nao
+    # foi mais o cosseno sozinho, foi um modelo que leu pergunta e trecho
+    # juntos. Dizer "nenhum numero separa" depois disso seria mentira.
+    julgou = any(h.rerank is not None for h in hits)
+    notas = [h.rerank for h in hits if h.rerank is not None]
+    media_juiz = sum(notas) / len(notas) if notas else None
+    if julgou and faixa == "baixa":
+        aviso = (
+            "> CONFIANCA BAIXA. O juiz local leu a pergunta junto com os "
+            f"trechos devolvidos e a aderencia media ficou em {media_juiz:.1f}/10."
+            "\n> Trate como \"o vault nao responde isso\". Similaridade de vetor "
+            f"era {sim:.3f}, dentro da faixa em que ela nao decide sozinha."
+            "\n\n---\n\n"
+        )
+    elif julgou and faixa == "media":
+        aviso = (
+            "> CONFIANCA MEDIA. Nem a similaridade nem o juiz local decidiram: "
+            f"a aderencia media ficou em {media_juiz:.1f}/10, no meio da escala."
+            "\n> Leia o trecho e decida se ele responde.\n\n---\n\n"
+        )
+    elif faixa == "baixa" and sim is not None:
         aviso = (
             f"> CONFIANCA BAIXA (similaridade {sim:.3f}). Nenhum trecho do vault "
             "tem relacao semantica com esta pergunta.\n> O que segue casou "
@@ -315,6 +407,10 @@ def format_hits(hits: list[SearchHit], *, snippet_chars: int = 900) -> str:
                 origem.append(f"semantico #{hit.vec_rank + 1}")
         if hit.fts_rank is not None:
             origem.append(f"literal #{hit.fts_rank + 1}")
+        if hit.rerank is not None:
+            # Vai junto com os outros sinais de proposito: o leitor precisa
+            # ver que esta nota veio de um julgamento, nao de distancia.
+            origem.append(f"juiz {hit.rerank}/10")
         blocks.append(
             f"## {i}. {hit.path}"
             + (f"  (L{hit.start_line})" if hit.start_line else "")

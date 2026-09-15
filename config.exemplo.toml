@@ -46,3 +46,31 @@ sim_duvidoso = 0.43       # abaixo disso, ressalva forte; entre os dois, branda
 # (secoes, subpastas, convencoes de diario e de indice). Preencha so se quiser
 # controlar o texto na mao.
 instructions = ""
+
+# --------------------------------------------------------------- reranker
+# Modelo de instrucao local que le pergunta e trecho JUNTOS e da nota de 0 a
+# 10. Vazio = desligado, e a busca se comporta exatamente como antes.
+#
+# So roda na faixa media, que e onde a similaridade nao decide: ruido e
+# pergunta legitima com outro vocabulario ocupam a mesma faixa de cosseno.
+# A faixa alta ja e confiavel e a baixa ja diz nao, entao gastar CPU nelas
+# nao muda resposta nenhuma.
+#
+# Nao adianta apontar para um cross-encoder (bge-reranker): o Ollama 0.34 nao
+# expoe o logit da cabeca de classificacao por caminho nenhum.
+# rerank_model = "qwen2.5:3b-instruct"
+
+# Corte do trecho enviado ao juiz. Medido: 350 rebaixou uma resposta certa de
+# 6 para 3; 600 manteve a nota sem custo perceptivel de latencia.
+# rerank_chars = 600
+
+# Quantos trechos julgar. Em CPU pura, sem GPU, cada um custa 0,3 a 1,7 s.
+# rerank_top = 5
+
+# rerank_timeout = 30.0
+
+# Nota que promove a faixa media para alta, e nota maxima que a rebaixa para
+# baixa. Entre as duas a faixa continua media, que e o sistema dizendo que
+# nem a similaridade nem o juiz decidiram.
+# rerank_promove = 6
+# rerank_rebaixa = 2
