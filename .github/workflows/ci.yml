@@ -1,0 +1,45 @@
+name: testes
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Instalar
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .
+
+      - name: Suite de testes
+        env:
+          VAULT_RAG_VAULT: ${{ github.workspace }}/.vault-ci
+        run: |
+          mkdir -p "$VAULT_RAG_VAULT"
+          python selftest.py
+
+      - name: Instalacao do zero (vault novo, sem Ollama)
+        run: |
+          python -m vault_rag.cli init --criar --vault /tmp/vault-ci --sim
+          test -f /tmp/vault-ci/00-INDICE.md
+          test -d /tmp/vault-ci/99-Diario
+          ls /tmp/vault-ci/99-Diario/*.md > /dev/null
+          echo "esqueleto criado e completo"
+
+      - name: Nenhum dado pessoal no repositorio
+        run: python ferramentas/verificar_vazamento.py

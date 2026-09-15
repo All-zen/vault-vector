@@ -1,0 +1,48 @@
+# vault-vector - copie para config.toml, ou rode 'vault-vector init' que ele
+# escreve este arquivo sozinho.
+
+# Pasta das suas notas. Barra normal funciona no Windows tambem.
+vault = "CAMINHO_DO_SEU_VAULT"
+
+# --- modelo de embedding -----------------------------------------------------
+ollama_url = "http://127.0.0.1:11434"
+model = "bge-m3"          # multilingue, 1024 dimensoes, roda em CPU
+embed_dim = 1024
+batch_size = 16
+parallel = 2              # medido: acima disso nao ganha nada em CPU comum
+request_timeout = 300.0
+
+# --- recorte -----------------------------------------------------------------
+target_chars = 2400       # tamanho alvo do trecho
+hard_max_chars = 6000     # teto duro; tabela e bloco de codigo sao divididos
+min_chars = 600           # abaixo disso, funde com o trecho anterior
+
+# --- pastas fora do indice ---------------------------------------------------
+ignore_dirs = [
+    ".obsidian", ".git", ".trash", "node_modules", "__pycache__",
+    "_historico", "_arquivo", "_to_delete",
+]
+ignore_globs = ["*.bak-*", "*.tmp.md", "*.excalidraw.md"]
+
+# --- busca -------------------------------------------------------------------
+max_per_file = 3          # no maximo N trechos da mesma nota por busca
+candidates = 40           # candidatos de cada lado antes da fusao
+rrf_k = 60                # constante do Reciprocal Rank Fusion
+expand_chars = 4000       # teto do trecho expandido (small-to-big)
+
+min_score = 0.30          # piso de RECALL: corta so o que nem candidato e
+
+# --- confianca do resultado --------------------------------------------------
+# Medido num vault real de ~500 notas: pergunta sem resposta ocupa 0.387-0.527
+# e pergunta legitima escrita com outro vocabulario ocupa 0.435-0.607. As duas
+# populacoes se SOBREPOEM, entao corte binario nao separa - a saida gradua a
+# confianca e passa a incerteza adiante. Rode 'vault-vector calibrar' para
+# medir estes numeros no SEU vault; eles mudam com o idioma e o assunto.
+sim_confiavel = 0.60      # acima disso, resultado sai sem ressalva
+sim_duvidoso = 0.43       # abaixo disso, ressalva forte; entre os dois, branda
+
+# --- descricao do vault para o modelo ----------------------------------------
+# Deixe vazio: o servidor le o proprio indice e escreve a descricao sozinho
+# (secoes, subpastas, convencoes de diario e de indice). Preencha so se quiser
+# controlar o texto na mao.
+instructions = ""

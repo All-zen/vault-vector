@@ -1,0 +1,16 @@
+# --- o que NUNCA pode subir ---------------------------------------------
+config.toml          # tem o caminho do seu vault
+*.db                 # o indice: o texto integral das suas notas
+*.db-wal
+*.db-shm
+.token               # token do modo HTTP
+servico.log
+servico.log.anterior
+perguntas*.txt       # o modelo de teste cita titulos das suas notas
+
+# --- ruido -------------------------------------------------------------
+.venv/
+__pycache__/
+*.egg-info/
+build/
+dist/

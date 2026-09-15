@@ -1,0 +1,28 @@
+[project]
+name = "vault-vector"
+version = "0.1.0"
+description = "Busca semantica hibrida local sobre um vault Obsidian, com MCP server"
+requires-python = ">=3.9"
+dependencies = [
+    "numpy>=1.24",
+    # Teto proposital: a 2.x renomeou FastMCP para MCPServer. O codigo em
+    # server.py aceita as duas, mas so a 1.x foi testada de verdade aqui.
+    # Para experimentar a 2.x: pip install "mcp>=2" e rode o selftest.
+    "mcp>=1.2,<2",
+    "uvicorn>=0.27",
+    "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.scripts]
+vault-vector = "vault_rag.cli:main"
+
+[project.gui-scripts]
+# .exe sem console: e o que a tarefa agendada roda no logon
+vault-vector-servico = "vault_rag.cli:main_servico"
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["vault_rag"]
