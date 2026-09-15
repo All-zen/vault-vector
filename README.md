@@ -30,7 +30,7 @@ Se você ainda não tem nenhuma, ele cria o vault com a estrutura que a busca sa
 
 Um sistema de busca por similaridade sempre devolve os `top_k` trechos mais parecidos. Quando a pergunta não tem resposta no corpus, ele devolve os menos distantes com a mesma aparência de acerto, e o modelo de linguagem que lê esses trechos responde a partir deles.
 
-O caso que expôs isso aqui foi a pergunta **"receita de pão de queijo mineiro"** contra um vault de infraestrutura e desenvolvimento: ela tirou o **maior score da sessão**, acima de perguntas cuja resposta estava no vault. O que voltou foram planilhas de produção de laticínio, porque a palavra "receita" existe no vault com outro sentido e os dois rankers concordaram com força. O score do RRF mede concordância entre rankers, e concordância não separa o caso em que os dois acertaram do caso em que os dois erraram junto.
+O caso que expôs isso aqui foi uma pergunta de culinária contra um vault de infraestrutura e desenvolvimento: ela tirou o **maior score da sessão**, acima de perguntas cuja resposta estava no vault. Uma palavra da pergunta tinha homônimo no corpus, e os dois rankers concordaram com força. O score do RRF mede concordância entre rankers, e concordância não separa o caso em que os dois acertaram do caso em que os dois erraram junto.
 
 ### Piso de similaridade não resolveu
 
