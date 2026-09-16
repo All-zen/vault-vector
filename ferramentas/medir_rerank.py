@@ -6,8 +6,8 @@ legitimas. Amostra de quatro nao e amostra. Este script existe para nao
 repetir isso: mede as duas populacoes inteiras e mostra, para cada corte
 possivel, quantas legitimas subiriam e quantos ruidos subiriam junto.
 
-Uso:
-  set VAULT_RAG_CONFIG=C:\\Memorias\\_tools\\vault-rag\\config-rerank.toml
+Uso: aponte VAULT_RAG_CONFIG para uma config COM rerank_model definido e rode
+
   python ferramentas/medir_rerank.py --perguntas perguntas.txt
 """
 
