@@ -15,7 +15,11 @@ nome, MOC por secao, titulos como fronteira de trecho, wikilinks.
 
 from __future__ import annotations
 
+import os
+import re
 import sys
+import time
+from datetime import datetime
 from pathlib import Path
 
 NOTAS: dict[str, str] = {
@@ -35,6 +39,7 @@ O servidor de casa, a rede e o que roda em cima.
 - [[Homelab/Servidor]] — o mini PC e os containers
 - [[Homelab/Rede]] — segmentação e Wi-Fi
 - [[Homelab/Backup]] — estratégia 3-2-1 com restic
+- [[Homelab/Runbook-Restauracao]] — do SSD morto ao servidor no ar
 - [[Homelab/Monitoramento]] — Uptime Kuma e alertas
 """,
     "Homelab/Servidor.md": """# Servidor
@@ -106,6 +111,88 @@ Em agosto o job parou de rodar por duas semanas sem ninguém perceber: a
 senha do repositório tinha mudado e o script engolia o erro. Detalhes em
 [[99-Diario/2026-08-12-backup-parado]]. Desde então o job manda alerta
 para o Uptime Kuma quando falha.
+""",
+    "Homelab/Runbook-Restauracao.md": """# Runbook — restaurar o servidor do zero
+
+Passo a passo para quando o SSD do servidor morrer. Testado em julho com
+um SSD reserva: do zero ao Jellyfin no ar levou 1h40.
+
+## Antes de começar
+
+Precisa de três coisas à mão, e nenhuma delas pode estar só no servidor:
+
+- a senha do repositório restic, que fica no gerenciador de senhas;
+- o pendrive com o instalador do Debian, na gaveta do rack;
+- acesso ao NAS pela rede, que é de onde vem o backup.
+
+Se o NAS também tiver morrido, a cópia é a do bucket na nuvem. Ela é mais
+lenta para baixar, mas é a mesma: o NAS só espelha o repositório.
+
+## Instalar o sistema
+
+Debian estável, instalação mínima, sem ambiente gráfico. Na partição,
+usar o disco inteiro com LVM: aumentar volume depois é bem mais simples.
+
+Depois do primeiro boot, o mínimo para o resto do runbook funcionar:
+
+```
+apt install -y restic docker.io docker-compose-plugin
+usermod -aG docker admin
+```
+
+Configurar o IP fixo antes de qualquer outra coisa. O DNS da casa inteira
+aponta para este servidor, e sem ele no ar ninguém na rede resolve nome.
+
+## Restaurar os dados
+
+O restic restaura direto para a raiz. Os volumes dos containers voltam
+com o dono certo porque o restic guarda o uid numérico.
+
+```
+export RESTIC_REPOSITORY=sftp:nas.casa:/backup/servidor
+restic snapshots
+restic restore latest --target /
+```
+
+Conferir o tamanho restaurado contra o do snapshot antes de seguir. Da
+última vez faltava uma pasta inteira por causa de uma regra de exclusão
+esquecida no script de backup.
+
+## Subir os serviços
+
+Todos sobem pelo mesmo compose, que veio junto na restauração.
+
+| Ordem | Serviço | Por que nessa ordem |
+|---|---|---|
+| 1 | AdGuard Home | sem DNS, os outros não acham uns aos outros |
+| 2 | Caddy | o HTTPS interno depende do DNS |
+| 3 | Paperless-ngx | o mais demorado para subir, por causa do OCR |
+| 4 | Jellyfin | o último: é o que a família nota primeiro |
+| 5 | Uptime Kuma | volta a vigiar tudo, inclusive o backup |
+
+```
+cd /srv && docker compose up -d adguard caddy
+docker compose up -d
+```
+
+## Conferir
+
+O serviço estar de pé não quer dizer que ele está certo. A lista que
+importa:
+
+1. `jellyfin.casa` abre e mostra a biblioteca inteira, não vazia;
+2. um documento recente aparece buscável no Paperless;
+3. o Uptime Kuma recebe o heartbeat do backup na madrugada seguinte;
+4. o primeiro backup depois da restauração termina sem erro.
+
+O item 4 é o que mais pega: o restic estranha o host novo e cria uma
+cadeia de snapshots separada. Rodar `restic snapshots --host` para ver.
+
+## O que faria diferente
+
+Na próxima vez, guardar a configuração do roteador junto com o backup do
+servidor. Refazer as reservas de DHCP de cabeça levou mais tempo do que
+restaurar os dados.
 """,
     "Homelab/Monitoramento.md": """# Monitoramento
 
@@ -350,14 +437,29 @@ Prioridade é o post. A nota [[Estudos/Busca-Hibrida]] já tem metade.
 }
 
 
+def _quando(rel: str, ordem: int, agora: float) -> float:
+    """Data de edicao plausivel: o diario na data do nome, o resto espalhado.
+
+    Sem isso todas as notas nascem editadas "agora", e o frescor do
+    ranking e a lista de recentes ficam sem nada para mostrar.
+    """
+    m = re.search(r"(20\d\d)-(\d\d)-(\d\d)", rel)
+    if m:
+        return datetime(int(m[1]), int(m[2]), int(m[3]), 21, 30).timestamp()
+    return agora - (2 + (ordem * 13) % 140) * 86400 - ordem * 3700
+
+
 def criar(destino: Path) -> list[str]:
     criados = []
-    for rel, conteudo in NOTAS.items():
+    agora = time.time()
+    for ordem, (rel, conteudo) in enumerate(NOTAS.items()):
         alvo = destino / rel
         if alvo.exists():
             continue
         alvo.parent.mkdir(parents=True, exist_ok=True)
         alvo.write_text(conteudo, encoding="utf-8")
+        quando = _quando(rel, ordem, agora)
+        os.utime(alvo, (quando, quando))
         criados.append(rel)
     return criados
 
