@@ -670,12 +670,7 @@ class Store:
         um link para nota que ainda nao foi indexada nao resolveria antes.
         """
         rows = self.conn.execute("SELECT path, links FROM files").fetchall()
-        by_path = {r["path"]: r["path"] for r in rows}
-        by_path.update({r["path"][:-3]: r["path"] for r in rows if r["path"].endswith(".md")})
-        by_stem: dict[str, list[str]] = {}
-        for r in rows:
-            stem = r["path"].rsplit("/", 1)[-1].lower()
-            by_stem.setdefault(stem[:-3] if stem.endswith(".md") else stem, []).append(r["path"])
+        by_path, by_stem = self._mapas_de_link(rows)
 
         contagem: dict[str, int] = {}
         for r in rows:
@@ -696,6 +691,58 @@ class Store:
         )
         self.conn.commit()
         return len(contagem)
+
+    @staticmethod
+    def _mapas_de_link(rows) -> tuple[dict[str, str], dict[str, list[str]]]:
+        """Caminho e nome curto de cada nota, para resolver wikilinks."""
+        by_path = {r["path"]: r["path"] for r in rows}
+        by_path.update({r["path"][:-3]: r["path"] for r in rows if r["path"].endswith(".md")})
+        by_stem: dict[str, list[str]] = {}
+        for r in rows:
+            stem = r["path"].rsplit("/", 1)[-1].lower()
+            by_stem.setdefault(stem[:-3] if stem.endswith(".md") else stem, []).append(r["path"])
+        return by_path, by_stem
+
+    def quem_cita(self, path: str, resolve) -> list[str]:
+        """Notas com wikilink que resolve para esta. Mesma regra dos backlinks."""
+        rows = self.conn.execute("SELECT path, links FROM files").fetchall()
+        by_path, by_stem = self._mapas_de_link(rows)
+        return sorted(
+            r["path"]
+            for r in rows
+            if r["path"] != path
+            and r["links"]
+            and any(resolve(alvo, by_path, by_stem) == path for alvo in r["links"].split("\n"))
+        )
+
+    def trechos(self, path: str) -> list[dict]:
+        """Os trechos indexados de uma nota, na ordem em que aparecem."""
+        rows = self.conn.execute(
+            "SELECT id, ord, heading_path, start_line, length(text) chars, embed_hash"
+            " FROM chunks WHERE path = ? ORDER BY ord",
+            (path,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+    def arquivo(self, path: str) -> dict | None:
+        row = self.conn.execute(
+            "SELECT path, title, section, note_kind, note_ts, mtime, size, backlinks,"
+            " n_chunks, indexed_at FROM files WHERE path = ?",
+            (path,),
+        ).fetchone()
+        return dict(row) if row else None
+
+    def notas(self, *, secao: str | None = None, limite: int = 50) -> list[dict]:
+        """Notas indexadas, da editada mais recentemente para a mais antiga."""
+        sql = ("SELECT path, title, section, note_kind, note_ts, mtime, n_chunks, backlinks"
+               " FROM files")
+        args: list = []
+        if secao:
+            sql += " WHERE section = ?"
+            args.append(secao)
+        sql += " ORDER BY mtime DESC LIMIT ?"
+        args.append(limite)
+        return [dict(r) for r in self.conn.execute(sql, args).fetchall()]
 
     # ----------------------------------------------------------------- stats
     def stats(self) -> dict:

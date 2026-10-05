@@ -40,6 +40,14 @@ class WriteError(RuntimeError):
     pass
 
 
+class ConflitoDeEdicao(WriteError):
+    """A nota mudou no disco entre a leitura e a gravacao.
+
+    Separada das outras recusas porque pede outra reacao: nao e pedido
+    errado, e preciso ler de novo antes de gravar.
+    """
+
+
 def _validar(cfg: Config, rel: str) -> tuple[Path, str]:
     """Resolve o caminho e recusa o que nao pode ser escrito."""
     rel = rel.replace("\\", "/").strip().lstrip("/")
@@ -85,7 +93,7 @@ def _checar_mtime(destino: Path, esperado: float | None) -> None:
     atual = destino.stat().st_mtime
     # Tolerancia de 1s: alguns sistemas de arquivo arredondam o mtime.
     if abs(atual - esperado) > 1.0:
-        raise WriteError(
+        raise ConflitoDeEdicao(
             f"a nota mudou no disco desde que foi lida "
             f"(esperava mtime {esperado:.0f}, achei {atual:.0f}). "
             "Provavelmente esta aberta no Obsidian. Leia de novo antes de gravar."
@@ -208,6 +216,55 @@ def write_note(
         "historico": str(copia.relative_to(cfg.vault)) if copia else None,
         "indice": _reindexar(cfg, rel),
     }
+
+
+def versoes(cfg: Config, ref: str) -> list[dict]:
+    """Copias desta nota guardadas em _historico/, da mais nova para a mais velha.
+
+    O nome da copia e o caminho com '/' trocado por '__' mais a hora
+    (_guardar_historico), dentro de uma pasta por dia. A lixeira fica de
+    fora: nota apagada nao tem "versao anterior", tem recuperacao.
+    """
+    resolvido = resolve_note(cfg, ref) or ref
+    _, rel = _validar(cfg, resolvido)
+    base = rel.replace("/", "__")[:-3] + "."
+    raiz = cfg.vault / HISTORICO
+    if not raiz.is_dir():
+        return []
+
+    achadas = []
+    for dia in raiz.iterdir():
+        if not dia.is_dir() or dia.name == "lixeira":
+            continue
+        for copia in dia.iterdir():
+            # startswith, e nao glob: nome de nota pode ter [ ] e * dentro.
+            if not copia.name.startswith(base) or not copia.name.endswith(".md"):
+                continue
+            hora = copia.name[len(base):-3].split("-")[0]
+            if len(hora) != 6 or not hora.isdigit():
+                continue  # outra nota cujo nome comeca igual a este
+            achadas.append({
+                "versao": copia.relative_to(cfg.vault).as_posix(),
+                "quando": f"{dia.name} {hora[:2]}:{hora[2:4]}:{hora[4:]}",
+                "bytes": copia.stat().st_size,
+            })
+    return sorted(achadas, key=lambda v: (v["quando"], v["versao"]), reverse=True)
+
+
+def restaurar(cfg: Config, ref: str, versao: str, *, expected_mtime: float | None = None) -> dict:
+    """Volta a nota para uma copia do historico.
+
+    Passa pelo write_note, entao a versao atual vai para o historico antes:
+    restaurar tambem tem volta.
+    """
+    resolvido = resolve_note(cfg, ref) or ref
+    _, rel = _validar(cfg, resolvido)
+    if not any(v["versao"] == versao for v in versoes(cfg, rel)):
+        raise WriteError(f"'{versao}' nao e uma versao guardada de {rel}")
+    conteudo = (cfg.vault / versao).read_text(encoding="utf-8")
+    r = write_note(cfg, rel, conteudo, overwrite=True, expected_mtime=expected_mtime)
+    r["acao"] = f"restaurou a versao de {versao.split('/')[1]}"
+    return r
 
 
 def note_mtime(cfg: Config, ref: str) -> float | None:

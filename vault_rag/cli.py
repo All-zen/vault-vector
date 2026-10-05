@@ -470,16 +470,7 @@ def cmd_init(args) -> int:
     criar_do_zero = args.criar
 
     if not vault and not criar_do_zero:
-        candidatos = []
-        for base in (Path.home(), Path.home() / "Documents", Path.home() / "Documentos"):
-            if not base.is_dir():
-                continue
-            try:
-                for d in base.iterdir():
-                    if d.is_dir() and (d / ".obsidian").is_dir():
-                        candidatos.append(d)
-            except OSError:
-                continue
+        candidatos = api.procurar_vaults()
 
         if candidatos:
             print("Vaults do Obsidian encontrados:")
