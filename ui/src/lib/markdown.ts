@@ -32,10 +32,14 @@ export function previa(texto: string): string {
   return texto
     .split("\n")
     .filter((l) => !/^\s*#{1,6}\s/.test(l) && !/^\s*\|?\s*:?-{3,}/.test(l) && !/^```/.test(l))
+    // Pipe so some em linha de tabela: no meio do texto ele pode ser
+    // conteudo ("o || true no fim da linha").
+    .map((l) => (/^\s*\|/.test(l) ? l.replace(/\|/g, " ") : l))
     .join(" ")
     .replace(WIKILINK, (_m, _e, alvo: string, _a, rotulo?: string) => rotulo ?? alvo.split("/").pop() ?? alvo)
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
-    .replace(/[*_`>|]/g, " ")
+    .replace(/(^|\s)[-*>]\s/g, "$1")
+    .replace(/[*_`]/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }

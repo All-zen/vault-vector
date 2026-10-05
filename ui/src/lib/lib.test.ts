@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { bytes, idade, numero } from "./formato";
+import { bytes, dataDoNome, idade, numero } from "./formato";
 import { previa, semFrontmatter, wikilinksParaLinks } from "./markdown";
 import { hrefNota, lerRota } from "./rota";
 
@@ -27,6 +27,10 @@ describe("previa do trecho", () => {
     expect(previa(trecho)).toBe("a b Um job diario, ver rede.");
   });
 
+  it("pipe fora de tabela e conteudo, nao sintaxe", () => {
+    expect(previa("o script engolia o erro com `|| true` no fim")).toBe("o script engolia o erro com || true no fim");
+  });
+
   it("frontmatter some da leitura", () => {
     expect(semFrontmatter("---\ntags: [x]\n---\n# Nota\n")).toBe("# Nota\n");
   });
@@ -40,6 +44,11 @@ describe("formato", () => {
     expect(idade(agora / 1000 - 3 * dia, agora)).toBe("há 3 dias");
     expect(idade(agora / 1000 - 40 * dia, agora)).toBe("há 1 mês");
     expect(idade(agora / 1000 - 800 * dia, agora)).toBe("há 2 anos");
+  });
+
+  it("data do nome do arquivo nao escorrega para o dia anterior no fuso do Brasil", () => {
+    // O backend guarda 2026-08-12 como meia-noite UTC.
+    expect(dataDoNome(Date.UTC(2026, 7, 12) / 1000)).toBe("2026-08-12");
   });
 
   it("numeros e bytes em pt-BR", () => {

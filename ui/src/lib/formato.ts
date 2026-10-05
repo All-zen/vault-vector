@@ -20,19 +20,29 @@ export function bytes(n: number | null | undefined): string {
   return `${v.toLocaleString("pt-BR", { maximumFractionDigits: v < 10 && i > 0 ? 1 : 0 })} ${unidades[i]}`;
 }
 
+const p2 = (n: number) => String(n).padStart(2, "0");
+
 /** Data de um timestamp em segundos, no formato do vault (AAAA-MM-DD). */
 export function data(ts: number | null | undefined): string {
   if (!ts) return "—";
   const d = new Date(ts * 1000);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`;
+}
+
+/**
+ * Data tirada do nome do arquivo (note_ts). O backend guarda como meia-noite
+ * UTC; formatar no fuso local jogaria "2026-08-12" para o dia 11 no Brasil.
+ */
+export function dataDoNome(ts: number | null | undefined): string {
+  if (!ts) return "—";
+  const d = new Date(ts * 1000);
+  return `${d.getUTCFullYear()}-${p2(d.getUTCMonth() + 1)}-${p2(d.getUTCDate())}`;
 }
 
 export function dataHora(ts: number | null | undefined): string {
   if (!ts) return "—";
   const d = new Date(ts * 1000);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${data(ts)} ${p(d.getHours())}:${p(d.getMinutes())}`;
+  return `${data(ts)} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
 }
 
 /** "há 3 meses". Nota antiga ainda aparece como relevante; saber de quando muda a leitura. */

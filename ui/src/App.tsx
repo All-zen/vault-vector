@@ -5,17 +5,23 @@ import { NovaNota } from "./componentes/app/NovaNota";
 import { AppMark, Button, Callout, ToastProvider } from "./componentes/ds";
 import { AppContexto, type ContextoApp } from "./lib/app";
 import { useDados } from "./lib/dados";
-import { navegar, useRota, type Tela } from "./lib/rota";
+import { navegar, useRota, type Rota } from "./lib/rota";
+import { Busca } from "./telas/Busca";
 import css from "./App.module.css";
 
-function Telas({ tela }: { tela: Tela }) {
-  return (
-    <div className={css.vazio}>
-      <Callout title="Tela ainda não ligada">
-        A rota <code>{tela}</code> existe, mas a tela ainda não foi construída.
-      </Callout>
-    </div>
-  );
+function Telas({ rota }: { rota: Rota }) {
+  switch (rota.tela) {
+    case "buscar":
+      return <Busca params={rota.params} />;
+    default:
+      return (
+        <div className={css.vazio}>
+          <Callout title="Tela ainda não ligada">
+            A rota <code>{rota.tela}</code> existe, mas a tela ainda não foi construída.
+          </Callout>
+        </div>
+      );
+  }
 }
 
 function Carregando() {
@@ -79,7 +85,7 @@ function Shell() {
         <BarraLateral estado={estado} rota={rota} ocupado={ocupado} aoNovaNota={() => abrirNovaNota()} />
         <main className={css.principal}>
           <div key={rota.tela} className={css.tela}>
-            <Telas tela={rota.tela} />
+            <Telas rota={rota} />
           </div>
         </main>
       </div>
