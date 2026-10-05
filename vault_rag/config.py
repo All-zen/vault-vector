@@ -173,3 +173,101 @@ def load_config(overrides: dict | None = None) -> Config:
         raise VaultNaoConfigurado(f"Vault nao encontrado: {cfg.vault}")
 
     return cfg
+
+
+# --------------------------------------------------------------- gravacao
+# Chaves que a interface pode gravar. Listas (ignore_dirs) ficam de fora de
+# proposito: editar lista multilinha preservando comentario nao compensa, e
+# quem mexe nisso abre o arquivo.
+GRAVAVEIS = {
+    "vault", "ollama_url", "model", "embed_dim", "batch_size", "parallel",
+    "num_thread", "request_timeout", "target_chars", "hard_max_chars",
+    "min_chars", "rrf_k", "candidates", "max_per_file", "min_score",
+    "sim_confiavel", "sim_duvidoso", "rerank_model", "rerank_chars",
+    "rerank_top", "rerank_timeout", "rerank_promove", "rerank_rebaixa",
+    "expand_chars",
+}
+
+_VALOR_TOML = r'(?:"(?:[^"\\]|\\.)*"|[^#\s][^#]*?)'
+_LINHA_ATIVA = r"^(?P<ind>\s*){chave}\s*=\s*(?P<valor>" + _VALOR_TOML + r")(?P<resto>\s*(?:#.*)?)$"
+_LINHA_COMENTADA = r"^(?P<ind>\s*)#\s*{chave}\s*=\s*(?P<valor>" + _VALOR_TOML + r")\s*$"
+
+
+def _toml(valor) -> str:
+    if isinstance(valor, bool):
+        return "true" if valor else "false"
+    if isinstance(valor, (int, float)):
+        return repr(valor)
+    texto = str(valor).replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{texto}"'
+
+
+def salvar(mudancas: dict, path: Path | None = None) -> Path:
+    """Grava chaves no config.toml mexendo so na linha de cada uma.
+
+    O arquivo e escrito a mao e comentado, e os comentarios explicam de onde
+    veio cada numero. Reescrever o TOML inteiro a partir de um dicionario
+    apagaria isso. Entao, para cada chave:
+
+      - linha ativa existe: troca o valor e mantem o comentario do fim;
+      - so existe comentada ('# rerank_model = ...'): descomenta ali mesmo,
+        ao lado da documentacao dela;
+      - nao existe: acrescenta no fim.
+
+    Sem config.toml, parte do config.exemplo.toml. A gravacao e atomica e o
+    resultado e validado pelo parser antes de substituir o arquivo: um
+    config quebrado impediria o proprio app de abrir para consertar.
+    """
+    import re
+
+    desconhecidas = set(mudancas) - GRAVAVEIS
+    if desconhecidas:
+        raise ValueError(f"chave(s) que nao se grava por aqui: {', '.join(sorted(desconhecidas))}")
+
+    path = path or config_path()
+    if path.is_file():
+        texto = path.read_text(encoding="utf-8")
+    else:
+        exemplo = Path(__file__).resolve().parent.parent / "config.exemplo.toml"
+        texto = exemplo.read_text(encoding="utf-8") if exemplo.is_file() else ""
+        # O exemplo traz um vault de mentira; sem trocar, o arquivo novo
+        # apontaria para uma pasta que nao existe.
+        texto = re.sub(r'(?m)^vault = "CAMINHO_DO_SEU_VAULT"\s*$', "", texto)
+
+    linhas = texto.splitlines()
+    acrescentar = []
+    for chave, valor in mudancas.items():
+        novo = _toml(valor)
+        ativa = re.compile(_LINHA_ATIVA.format(chave=re.escape(chave)))
+        comentada = re.compile(_LINHA_COMENTADA.format(chave=re.escape(chave)))
+        for i, linha in enumerate(linhas):
+            m = ativa.match(linha)
+            if m:
+                linhas[i] = f"{m['ind']}{chave} = {novo}{m['resto']}"
+                break
+        else:
+            for i, linha in enumerate(linhas):
+                m = comentada.match(linha)
+                if m:
+                    linhas[i] = f"{m['ind']}{chave} = {novo}"
+                    break
+            else:
+                acrescentar.append(f"{chave} = {novo}")
+
+    if acrescentar:
+        # O vault vai para o topo: e a primeira coisa que alguem procura.
+        if any(a.startswith("vault = ") for a in acrescentar):
+            vault = next(a for a in acrescentar if a.startswith("vault = "))
+            acrescentar.remove(vault)
+            linhas = ["# Pasta das suas notas.", vault, ""] + linhas
+        if acrescentar:
+            linhas += ["", "# --- gravado pelo app " + "-" * 51] + acrescentar
+
+    final = "\n".join(linhas).rstrip("\n") + "\n"
+    tomllib.loads(final)  # TOMLDecodeError aqui = nada foi gravado
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporario = path.with_suffix(".toml.tmp")
+    temporario.write_text(final, encoding="utf-8")
+    os.replace(temporario, path)
+    return path

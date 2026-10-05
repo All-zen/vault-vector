@@ -496,6 +496,27 @@ def main() -> int:
         check("paralelismo mede cada nivel pedido",
               [r["paralelo"] for r in niveis] == [1, 2] and niveis[0]["ganho"] == 1.0, str(niveis))
 
+        # --- gravacao do config ---
+        # O config.toml e comentado a mao, e os comentarios explicam de onde
+        # veio cada numero. Gravar pela interface nao pode apagar isso.
+        from vault_rag.config import salvar
+
+        alvo = tmp / "config.toml"
+        alvo.write_text('vault = "x"\nparallel = 2   # medido\n# rerank_model = "a"\n',
+                        encoding="utf-8")
+        salvar({"parallel": 4, "rerank_model": "b", "rrf_k": 50}, alvo)
+        gravado = alvo.read_text(encoding="utf-8")
+        check("config: troca o valor e mantem o comentario", "parallel = 4   # medido" in gravado)
+        check("config: chave documentada e descomentada no lugar",
+              gravado.splitlines()[2] == 'rerank_model = "b"', gravado)
+        check("config: chave nova vai para o fim", gravado.rstrip().endswith("rrf_k = 50"))
+        try:
+            salvar({"vault": 'quebra"'.replace('"', "\n")}, alvo)
+            check("config: valor que quebraria o TOML nao e gravado", False, "gravou")
+        except Exception:
+            check("config: valor que quebraria o TOML nao e gravado",
+                  alvo.read_text(encoding="utf-8") == gravado)
+
         # --- config viva ---
         # O app de desktop abre ANTES de existir vault, justamente para a
         # pessoa escolher um. Sem vault, o processo tem que ficar de pe e as
