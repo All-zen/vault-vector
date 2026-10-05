@@ -1,0 +1,105 @@
+.campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rotulo { font: 500 13px/1.2 var(--font-sans); color: var(--text-strong); }
+.desligado { opacity: 0.5; cursor: not-allowed !important; }
+
+/* elemento nativo escondido mas focavel: o desenho fica no span ao lado */
+.nativo { position: absolute; opacity: 0; width: 1px; height: 1px; margin: 0; }
+
+/* select */
+.selectCaixa { position: relative; display: flex; }
+.select {
+  appearance: none;
+  width: 100%;
+  height: 36px;
+  padding: 0 32px 0 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-card);
+  color: var(--text-strong);
+  font: 400 14px/1 var(--font-sans);
+  cursor: pointer;
+}
+.selectSm { height: 28px; font-size: 13px; }
+.select:focus-visible { outline: none; border-color: var(--border-focus); box-shadow: var(--ring-focus); }
+.seta { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); pointer-events: none; color: var(--text-faint); }
+
+/* checkbox */
+.linha {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font: 400 14px/1.3 var(--font-sans);
+  color: var(--text-body);
+}
+.quadrado {
+  width: 16px;
+  height: 16px;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-xs);
+  border: 1px solid var(--border-strong);
+  background: var(--surface-card);
+  color: var(--text-on-accent);
+  transition: background var(--dur-fast);
+}
+.nativo:checked + .quadrado { background: var(--accent); border-color: var(--accent); }
+.nativo:focus-visible + .quadrado { box-shadow: var(--ring-focus); }
+.texto { min-width: 0; }
+
+/* switch */
+.switchLinha { position: relative; display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
+.trilho {
+  position: relative;
+  width: 30px;
+  height: 18px;
+  flex: none;
+  margin-top: 1px;
+  border-radius: 999px;
+  background: var(--paper-4);
+  transition: background var(--dur-base) var(--ease-out);
+}
+.botao {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--ink-2);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+  transition: left var(--dur-base) var(--ease-out), background var(--dur-base);
+}
+.nativo:checked + .trilho { background: var(--accent); }
+.nativo:checked + .trilho .botao { left: 14px; background: var(--text-on-accent); }
+.nativo:focus-visible + .trilho { box-shadow: var(--ring-focus); }
+.textos { display: flex; flex-direction: column; gap: 2px; }
+.switchRotulo { font: 500 14px/1.3 var(--font-sans); color: var(--text-strong); }
+.descricao { font: 400 13px/1.45 var(--font-sans); color: var(--text-muted); }
+
+/* slider */
+.slider { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.sliderTopo { display: flex; justify-content: space-between; }
+.sliderLinha { display: flex; align-items: center; gap: 12px; }
+.sliderValor { font: 500 13px/1.2 var(--font-mono); color: var(--accent); min-width: 48px; text-align: right; }
+.range {
+  flex: 1;
+  height: 4px;
+  appearance: none;
+  border-radius: 999px;
+  outline: 0;
+  cursor: pointer;
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink-1);
+  border: 2px solid var(--accent);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4);
+}
+.range:focus-visible::-webkit-slider-thumb { box-shadow: var(--ring-focus); }

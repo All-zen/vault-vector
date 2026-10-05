@@ -1,0 +1,52 @@
+.campo { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.rotulo { font: 500 13px/1.2 var(--font-sans); color: var(--text-strong); }
+
+.caixa {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  transition: box-shadow var(--dur-fast), border-color var(--dur-fast);
+}
+.caixa:focus-within { border-color: var(--border-focus); box-shadow: var(--ring-focus); }
+.sm { height: 28px; }
+.md { height: 36px; }
+.lg { height: 48px; padding: 0 16px; border-radius: var(--radius-md); }
+.invalido { border-color: var(--baixa-line); }
+.desligado { background: var(--surface-sunken); }
+.icone { flex: none; color: var(--text-faint); }
+
+.input {
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: var(--text-strong);
+  font: 400 14px/1 var(--font-sans);
+}
+.lg .input { font-size: 17px; }
+.input::placeholder { color: var(--text-faint); }
+.input:focus-visible { outline: none; }
+.mono { font-family: var(--font-mono); font-size: 13px; }
+
+.dica { font: 400 12px/1.4 var(--font-sans); color: var(--text-muted); }
+.dicaErro { color: var(--baixa-fg); }
+
+.textarea {
+  width: 100%;
+  padding: 12px 14px;
+  background: var(--surface-card);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  color: var(--text-strong);
+  font: 400 14px/1.6 var(--font-mono);
+  resize: vertical;
+  outline: 0;
+  transition: box-shadow var(--dur-fast), border-color var(--dur-fast);
+}
+.textarea:focus { border-color: var(--border-focus); box-shadow: var(--ring-focus); }

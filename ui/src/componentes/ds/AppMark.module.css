@@ -1,0 +1,11 @@
+.marca { display: block; flex: none; }
+
+.desenho {
+  stroke-dasharray: 260;
+  animation: vv-draw 520ms var(--ease-out) both;
+}
+
+.ponto {
+  transform-origin: 256px 366px;
+  animation: vv-pop 360ms var(--ease-out) 480ms both;
+}

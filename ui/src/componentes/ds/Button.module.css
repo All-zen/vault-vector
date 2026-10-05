@@ -1,0 +1,56 @@
+.botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--dur-fast) var(--ease-out), transform var(--dur-fast);
+}
+.botao:active:not(:disabled) { transform: translateY(1px); }
+.botao:disabled { cursor: not-allowed; opacity: 0.45; }
+
+.sm { height: var(--control-h-sm); padding: 0 10px; font: 500 13px/1 var(--font-sans); }
+.md { height: var(--control-h-md); padding: 0 14px; font: 500 14px/1 var(--font-sans); }
+.lg { height: var(--control-h-lg); padding: 0 18px; font: 500 15px/1 var(--font-sans); }
+.full { width: 100%; }
+
+.primary { background: var(--accent); color: var(--text-on-accent); }
+.primary:hover:not(:disabled) { background: var(--accent-hover); }
+
+.secondary {
+  background: var(--surface-card);
+  color: var(--text-strong);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-1);
+}
+.secondary:hover:not(:disabled) { background: var(--surface-hover); }
+
+.ghost { background: transparent; color: var(--text-body); }
+.ghost:hover:not(:disabled) { background: var(--surface-hover); }
+
+.danger { background: var(--surface-card); color: var(--baixa-fg); border-color: var(--baixa-line); }
+.danger:hover:not(:disabled) { background: var(--baixa-bg); }
+
+.girando { animation: vv-spin 0.9s linear infinite; }
+
+.icone {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out), color var(--dur-fast);
+}
+.icone:hover:not(:disabled) { background: var(--surface-hover); color: var(--text-strong); }
+.icone:disabled { cursor: not-allowed; opacity: 0.4; }
+.iconeSm { width: 28px; height: 28px; }
+.ativo { background: var(--accent-soft); color: var(--accent); }

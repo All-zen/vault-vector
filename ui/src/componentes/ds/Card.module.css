@@ -1,0 +1,13 @@
+.card {
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-1);
+  min-width: 0;
+}
+.selected { border-color: var(--vv-200); box-shadow: var(--ring-focus); }
+
+.header { display: flex; align-items: flex-start; gap: 12px; }
+.textos { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.titulo { font: var(--type-heading); color: var(--text-strong); }
+.sub { font: var(--type-small); color: var(--text-muted); text-wrap: pretty; }

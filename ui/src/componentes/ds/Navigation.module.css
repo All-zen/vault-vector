@@ -1,0 +1,35 @@
+.item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--radius-sm);
+  color: var(--text-body);
+  font: 500 14px/1 var(--font-sans);
+  text-decoration: none;
+}
+.item:hover { background: var(--surface-hover); color: var(--text-strong); }
+.icone { flex: none; color: var(--text-muted); }
+.ativo { background: var(--surface-card); box-shadow: var(--shadow-1); color: var(--text-strong); font-weight: 600; }
+.ativo .icone { color: var(--accent); }
+.rotulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.contagem { font: 500 11px/1 var(--font-mono); color: var(--text-faint); }
+
+.abas { display: flex; gap: 20px; border-bottom: 1px solid var(--border-subtle); }
+.aba {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 0;
+  margin-bottom: -1px;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: 500 14px/1 var(--font-sans);
+  cursor: pointer;
+}
+.aba:hover { color: var(--text-strong); }
+.abaAtiva { border-bottom-color: var(--accent); color: var(--text-strong); font-weight: 600; }

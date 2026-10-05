@@ -1,0 +1,18 @@
+.progresso { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.legenda { display: flex; justify-content: space-between; gap: 12px; min-width: 0; }
+.rotulo { font: 500 13px/1.2 var(--font-sans); color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.detalhe { font: 400 12px/1.2 var(--font-mono); color: var(--text-muted); flex: none; }
+.trilho { height: 6px; border-radius: 999px; background: var(--paper-3); overflow: hidden; }
+.barra {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--accent);
+  transition: width var(--dur-slow) var(--ease-out);
+}
+.brilho { box-shadow: 0 0 12px var(--accent); }
+.indeterminada { width: 30%; animation: correr 1.4s var(--ease-out) infinite; }
+
+@keyframes correr {
+  from { transform: translateX(-100%); }
+  to { transform: translateX(340%); }
+}

@@ -1,0 +1,27 @@
+.dialog {
+  max-width: calc(100vw - 48px);
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface-card);
+  color: var(--text-body);
+  box-shadow: var(--shadow-3);
+  overflow: hidden;
+}
+.dialog[open] { animation: vv-rise var(--dur-slow) var(--ease-out); }
+.dialog::backdrop { background: var(--scrim); animation: vv-fade var(--dur-base) var(--ease-out); }
+
+.topo { display: flex; align-items: flex-start; gap: 12px; padding: 18px 18px 0 20px; }
+.textos { flex: 1; display: flex; flex-direction: column; gap: 6px; }
+.titulo { font: 600 17px/1.3 var(--font-sans); color: var(--text-strong); }
+.descricao { font: 400 14px/1.5 var(--font-sans); color: var(--text-muted); text-wrap: pretty; }
+.corpo { padding: 16px 20px 0; }
+.rodape {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 16px;
+  margin-top: 16px;
+  background: var(--surface-sunken);
+  border-top: 1px solid var(--border-subtle);
+}
