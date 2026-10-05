@@ -1,12 +1,19 @@
 # --- o que NUNCA pode subir ---------------------------------------------
-config.toml          # tem o caminho do seu vault
-*.db                 # o indice: o texto integral das suas notas
+# Comentario fica na linha de cima: o git nao aceita comentario no fim da
+# linha, e "config.toml   # ..." vira um padrao que nao casa com nada.
+
+# tem o caminho do seu vault
+config.toml
+# o indice: o texto integral das suas notas
+*.db
 *.db-wal
 *.db-shm
-.token               # token do modo HTTP
+# token do modo HTTP
+.token
 servico.log
 servico.log.anterior
-perguntas*.txt       # o modelo de teste cita titulos das suas notas
+# o modelo de teste cita titulos das suas notas
+perguntas*.txt
 
 # --- ruido -------------------------------------------------------------
 .venv/
