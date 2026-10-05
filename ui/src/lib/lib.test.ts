@@ -48,6 +48,12 @@ describe("previa do trecho", () => {
     expect(previa("o script engolia o erro com `|| true` no fim")).toBe("o script engolia o erro com || true no fim");
   });
 
+  it("sublinhado no meio de identificador fica; enfase some", () => {
+    expect(previa("export RESTIC_REPOSITORY=x e _importante_ e **forte**")).toBe(
+      "export RESTIC_REPOSITORY=x e importante e forte",
+    );
+  });
+
   it("frontmatter some da leitura", () => {
     expect(semFrontmatter("---\ntags: [x]\n---\n# Nota\n")).toBe("# Nota\n");
   });

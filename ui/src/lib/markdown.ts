@@ -80,7 +80,11 @@ export function previa(texto: string): string {
     .replace(WIKILINK, (_m, _e, alvo: string, _a, rotulo?: string) => rotulo ?? alvo.split("/").pop() ?? alvo)
     .replace(/\[([^\]]+)\]\([^)]+\)/g, "$1")
     .replace(/(^|\s)[-*>]\s/g, "$1")
-    .replace(/[*_`]/g, "")
+    // So enfase de verdade some. Sublinhado no meio de identificador
+    // (RESTIC_REPOSITORY, vault_search) e conteudo.
+    .replace(/(\*\*|__)(.+?)\1/g, "$2")
+    .replace(/(^|[\s(])[*_]([^*_\s](?:[^*_]*[^*_\s])?)[*_](?=[\s).,;:!?]|$)/g, "$1$2")
+    .replace(/`/g, "")
     .replace(/\s+/g, " ")
     .trim();
 }
