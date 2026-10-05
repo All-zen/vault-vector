@@ -10,10 +10,17 @@ desenvolvimento, e revisao a olho nao pega isso de forma confiavel.
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
+
+# Arquivos que carregam o vault de quem roda o projeto. Nao basta estarem no
+# .gitignore: precisam CASAR com ele. Comentario no fim da linha, por exemplo,
+# vira parte do padrao e o arquivo passa direto - foi assim que um arquivo de
+# perguntas com titulos de notas reais entrou num commit.
+DEVEM_SER_IGNORADOS = ["config.toml", "index.db", ".token", "perguntas.txt"]
 
 # Nao e lista de palavras proibidas: sao FORMAS de vazamento.
 PADROES = [
@@ -31,11 +38,37 @@ PERMITIDO = {
     "e-mail": re.compile(r"noreply@|exemplo\.com|example\.com"),
 }
 
-IGNORAR_DIR = {".git", ".venv", "__pycache__", ".github", "node_modules"}
-EXTENSOES = {".py", ".toml", ".md", ".ps1", ".yml", ".yaml", ".json", ".txt", ".cfg"}
+# static/ e o build da interface: codigo minificado de terceiros, gerado a
+# partir de ui/, que ja e verificado na fonte.
+IGNORAR_DIR = {".git", ".venv", "__pycache__", ".github", "node_modules", "static"}
+EXTENSOES = {".py", ".toml", ".md", ".ps1", ".yml", ".yaml", ".json", ".txt", ".cfg",
+             ".ts", ".tsx", ".css", ".html"}
+
+
+def gitignore_furado() -> list[str]:
+    """Nomes sensiveis que o .gitignore deixaria entrar num 'git add .'."""
+    furos = []
+    for nome in DEVEM_SER_IGNORADOS:
+        try:
+            r = subprocess.run(
+                ["git", "check-ignore", "-q", "--no-index", nome],
+                cwd=RAIZ,
+                capture_output=True,
+            )
+        except FileNotFoundError:
+            return []  # sem git nao ha commit, entao nao ha o que vazar
+        if r.returncode != 0:
+            furos.append(nome)
+    return furos
 
 
 def main() -> int:
+    furos = gitignore_furado()
+    if furos:
+        print("o .gitignore nao protege:", ", ".join(furos))
+        print("confira se o padrao esta sozinho na linha, sem comentario no fim")
+        return 1
+
     achados = []
     for caminho in sorted(RAIZ.rglob("*")):
         if not caminho.is_file() or caminho.suffix not in EXTENSOES:

@@ -310,6 +310,88 @@ def list_sections(cfg: Config) -> list[dict]:
         store.close()
 
 
+def procurar_vaults() -> list[Path]:
+    """Vaults do Obsidian nos lugares de costume: pasta do usuario e Documentos.
+
+    Um nivel so de profundidade. Varrer o disco inteiro atras de .obsidian
+    demora e acha copia de backup antes de achar o vault de verdade.
+    """
+    achados = []
+    for base in (Path.home(), Path.home() / "Documents", Path.home() / "Documentos"):
+        if not base.is_dir():
+            continue
+        try:
+            for d in base.iterdir():
+                if d.is_dir() and (d / ".obsidian").is_dir() and d not in achados:
+                    achados.append(d)
+        except OSError:
+            continue
+    return achados
+
+
+def nota_completa(cfg: Config, ref: str) -> dict:
+    """Tudo que a tela de nota mostra: texto, metadados, trechos, citacoes.
+
+    O mtime vai junto para a gravacao poder recusar se a nota mudou no
+    disco entre a leitura e o salvar - o Obsidian aberto ao lado, por exemplo.
+    """
+    from .meta import resolve_link
+    from .writer import versoes
+
+    resolvido = resolve_note(cfg, ref) or ref
+    caminho = _safe_path(cfg, resolvido)
+    if not caminho.is_file():
+        raise FileNotFoundError(f"nota nao encontrada: {ref}")
+    rel = caminho.relative_to(cfg.vault.resolve()).as_posix()
+    stat = caminho.stat()
+
+    store = Store(cfg.db_path, cfg.embed_dim)
+    try:
+        arquivo = store.arquivo(rel) or {}
+        trechos = store.trechos(rel)
+        citada_por = store.quem_cita(rel, resolve_link)
+    finally:
+        store.close()
+
+    return {
+        "path": rel,
+        "titulo": arquivo.get("title") or caminho.stem,
+        "conteudo": caminho.read_text(encoding="utf-8", errors="replace"),
+        "mtime": stat.st_mtime,
+        "bytes": stat.st_size,
+        "secao": arquivo.get("section", rel.split("/")[0] if "/" in rel else ""),
+        "tipo": arquivo.get("note_kind") or "nota",
+        "data": arquivo.get("note_ts"),
+        "indexada": bool(arquivo),
+        # O indice pode estar atras do disco: nota editada fora do app e
+        # ainda nao reindexada. A tela avisa em vez de mostrar trecho velho.
+        "desatualizada": bool(arquivo) and abs(arquivo.get("mtime", 0) - stat.st_mtime) > 1.0,
+        "trechos": trechos,
+        "citada_por": citada_por,
+        "versoes": versoes(cfg, rel),
+    }
+
+
+def mapa_do_indice(cfg: Config) -> dict:
+    """Posicao de cada nota pendente na lista do vault, para desenhar o mapa.
+
+    'pendentes' sao indices na ordem alfabetica dos caminhos - a mesma ordem
+    em que a indexacao percorre o vault. Nota apagada do disco nao tem
+    posicao e conta a parte, em 'removidas'.
+    """
+    from .indexer import iter_notes
+
+    caminhos = [rel for _, rel in iter_notes(cfg)]
+    pendentes = set(stale_files(cfg))
+    no_disco = set(caminhos)
+    return {
+        "total": len(caminhos),
+        "pendentes": [i for i, rel in enumerate(caminhos) if rel in pendentes],
+        "amostra": [rel for rel in caminhos if rel in pendentes][:10],
+        "removidas": len(pendentes - no_disco),
+    }
+
+
 def index_status(cfg: Config) -> dict:
     store = Store(cfg.db_path, cfg.embed_dim)
     try:

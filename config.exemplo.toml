@@ -69,8 +69,10 @@ instructions = ""
 
 # rerank_timeout = 30.0
 
-# Nota que promove a faixa media para alta, e nota maxima que a rebaixa para
-# baixa. Entre as duas a faixa continua media, que e o sistema dizendo que
-# nem a similaridade nem o juiz decidiram.
-# rerank_promove = 6
-# rerank_rebaixa = 2
+# MEDIA das notas que promove a faixa media para alta, e media que a rebaixa
+# para baixa. Entre as duas a faixa continua media, que e o sistema dizendo
+# que nem a similaridade nem o juiz decidiram. E media, e nao a nota maxima:
+# medido com 8 perguntas legitimas contra 8 de ruido, 7 de 8 de cada lado
+# tiram >= 6 em algum trecho, entao o maximo nao separa nada.
+# rerank_promove = 3.4
+# rerank_rebaixa = 1.2

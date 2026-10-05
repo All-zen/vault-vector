@@ -285,6 +285,12 @@ def main() -> int:
         check("nota-indice e penalizada em pergunta factual",
               all(h.boost < 1.0 for h in moc) if moc else True,
               str([(h.path, h.boost) for h in moc]))
+        check("o motivo da penalidade vai junto com o hit",
+              all(any("factual" in nome for nome, _ in h.fatores) for h in moc),
+              str([h.fatores for h in moc]))
+        check("o produto dos fatores e o boost",
+              all(abs(np.prod([x for _, x in h.fatores]) - h.boost) < 0.01 for h in hits),
+              str([(h.boost, h.fatores) for h in hits]))
 
         maior = max(len(h.text) for h in api.search(cfg, "comparativo item preco", top_k=10)) \
             if api.search(cfg, "comparativo item preco", top_k=10) else 0
@@ -442,6 +448,255 @@ def main() -> int:
         finally:
             api.OllamaJudge = original_juiz
             cfg.rerank_model = ""
+
+        # --- diagnostico ---
+        # CLI e tela de saude leem a mesma lista. Ollama fora do ar e o caso
+        # que mais acontece na pratica, e tem que aparecer como falta, sem
+        # derrubar o resto da checagem.
+        from vault_rag import ollama
+        from vault_rag.diagnostico import diagnosticar, problemas
+
+        sem_ollama = Config(vault=cfg.vault, db_path=cfg.db_path, model="stub",
+                            ollama_url="http://127.0.0.1:9")
+        grupos = {g.id: g for g in diagnosticar(sem_ollama, testar_busca=False)}
+        check("diagnostico: Ollama fora do ar e falta",
+              grupos["ollama"].itens[0].status == "falta" and grupos["ollama"].itens[0].dica)
+        check("diagnostico: o resto continua sendo checado",
+              {"config", "indice", "escrita"} <= set(grupos))
+        check("diagnostico: so o Ollama conta como problema",
+              len(problemas(list(grupos.values()))) == 1,
+              str([i.rotulo for i in problemas(list(grupos.values()))]))
+        check("modelo sem tag casa com :latest", ollama.mesmo_modelo("bge-m3", "bge-m3:latest"))
+        check("tag diferente NAO casa", not ollama.mesmo_modelo("qwen2.5:3b", "qwen2.5:7b"))
+
+        # --- medicoes ---
+        from vault_rag import medicao
+
+        s = medicao.sugerir_limiar([0.38, 0.41, 0.52], [0.45, 0.58, 0.61, 0.66])
+        check("limiar: populacoes que se sobrepoem pedem escolha",
+              s["sobrepoe"] and s["conservador"] == 0.525 and s["perdidas_no_conservador"] == 1,
+              str(s))
+        s = medicao.sugerir_limiar([0.30, 0.35], [0.50, 0.60])
+        check("limiar: sem sobreposicao, o meio do vao",
+              not s["sobrepoe"] and s["sugerido"] == 0.425, str(s))
+        check("limiar: amostra vazia nao inventa numero", medicao.sugerir_limiar([], [0.5]) is None)
+
+        arq = tmp / "perguntas.txt"
+        arq.write_text("# comentario\nREESCREVA ESTA COMO PERGUNTA | x\n"
+                       "como copio os arquivos | backup-nas\n\n", encoding="utf-8")
+        check("perguntas: pula comentario e linha nao reescrita",
+              medicao.ler_perguntas(arq) == [("como copio os arquivos", "backup-nas")])
+
+        medida = medicao.medir_calibracao(cfg, amostra=4)
+        check("calibracao sem perguntas mede titulos",
+              medida["fonte"] == "titulos" and len(medida["fora"]) == len(medicao.FORA_DO_VAULT)
+              and 0 < len(medida["dentro"]) <= 4, str({k: medida[k] for k in ("fonte",)}))
+        textos, total = medicao.amostra_de_trechos(cfg, 6)
+        niveis = medicao.medir_paralelismo(cfg, textos, [1, 2])
+        check("paralelismo mede cada nivel pedido",
+              [r["paralelo"] for r in niveis] == [1, 2] and niveis[0]["ganho"] == 1.0, str(niveis))
+
+        # --- tarefas em segundo plano ---
+        import threading
+        import time as _time
+
+        from vault_rag.tarefas import Tarefas
+
+        def esperar(tarefa, limite=30):
+            fim = _time.time() + limite
+            while tarefa.estado == "rodando" and _time.time() < fim:
+                _time.sleep(0.02)
+            return tarefa
+
+        tarefas = Tarefas()
+        (cfg.vault / "infra/nova-nota.md").write_text("# Nova\n\nTexto novo.\n", encoding="utf-8")
+        t = esperar(tarefas.iniciar("indexar", lambda tf: index_vault(
+            cfg, verbose=False,
+            progress=lambda rel, rep: tf.andamento(rep.processadas, rep.total, rel)).as_text()))
+        check("tarefa de indexacao termina com andamento completo",
+              t.estado == "ok" and t.total == 1 and t.feito == 1, str(t.como_dict()))
+
+        solta = threading.Event()
+        lenta = tarefas.iniciar("medir", lambda tf: solta.wait(5))
+        check("segundo clique devolve a tarefa que ja roda",
+              tarefas.iniciar("medir", lambda tf: None) is lenta)
+        solta.set()
+        esperar(lenta)
+
+        def quebra(tf):
+            raise RuntimeError("Ollama sumiu")
+        import contextlib
+        import io
+
+        with contextlib.redirect_stderr(io.StringIO()):  # o traceback e esperado
+            falhou = esperar(tarefas.iniciar("x", quebra))
+        check("erro na tarefa chega a quem consulta", falhou.erro == "Ollama sumiu")
+
+        # --- refazer trechos ---
+        # Mudar o recorte pede cortar de novo notas que nao mudaram no disco,
+        # mas o modelo e o mesmo: trecho com o mesmo texto reaproveita o vetor.
+        embeddados = []
+        embed_original = _StubEmbedder.embed
+        _StubEmbedder.embed = lambda self, textos: (embeddados.extend(textos), embed_original(self, textos))[1]
+        try:
+            total_antes = sum(1 for _ in cfg.vault.rglob("*.md"))
+            alvo_original = cfg.target_chars
+            cfg.target_chars, cfg.min_chars = 120, 40
+            rep = index_vault(cfg, refazer_trechos=True, verbose=False)
+            check("refazer trechos reprocessa nota que nao mudou no disco",
+                  rep.indexed >= 5 and rep.indexed < total_antes, rep.as_text())
+            embeddados.clear()
+            rep = index_vault(cfg, refazer_trechos=True, verbose=False)
+            check("recorte igual de novo: nenhum vetor recalculado",
+                  rep.indexed >= 5 and not embeddados, f"{len(embeddados)} embeddados")
+        finally:
+            _StubEmbedder.embed = embed_original
+            cfg.target_chars, cfg.min_chars = alvo_original, 600
+            index_vault(cfg, refazer_trechos=True, verbose=False)
+
+        # --- gravacao do config ---
+        # O config.toml e comentado a mao, e os comentarios explicam de onde
+        # veio cada numero. Gravar pela interface nao pode apagar isso.
+        from vault_rag.config import salvar
+
+        alvo = tmp / "config.toml"
+        alvo.write_text('vault = "x"\nparallel = 2   # medido\n# rerank_model = "a"\n',
+                        encoding="utf-8")
+        salvar({"parallel": 4, "rerank_model": "b", "rrf_k": 50}, alvo)
+        gravado = alvo.read_text(encoding="utf-8")
+        check("config: troca o valor e mantem o comentario", "parallel = 4   # medido" in gravado)
+        check("config: chave documentada e descomentada no lugar",
+              gravado.splitlines()[2] == 'rerank_model = "b"', gravado)
+        check("config: chave nova vai para o fim", gravado.rstrip().endswith("rrf_k = 50"))
+        try:
+            salvar({"vault": 'quebra"'.replace('"', "\n")}, alvo)
+            check("config: valor que quebraria o TOML nao e gravado", False, "gravou")
+        except Exception:
+            check("config: valor que quebraria o TOML nao e gravado",
+                  alvo.read_text(encoding="utf-8") == gravado)
+
+        # --- config viva ---
+        # O app de desktop abre ANTES de existir vault, justamente para a
+        # pessoa escolher um. Sem vault, o processo tem que ficar de pe e as
+        # ferramentas recusarem com mensagem, em vez de SystemExit no import.
+        import os
+
+        from vault_rag import contexto
+
+        guardado = {k: os.environ.get(k) for k in ("VAULT_RAG_CONFIG", "VAULT_RAG_VAULT")}
+        try:
+            os.environ["VAULT_RAG_CONFIG"] = str(tmp / "nao-existe.toml")
+            os.environ.pop("VAULT_RAG_VAULT", None)
+            check("sem vault, o contexto devolve None em vez de sair",
+                  contexto.recarregar() is None and "Vault" in contexto.motivo())
+            try:
+                contexto.config()
+                check("sem vault, pedir a config e erro comum", False, "nao recusou")
+            except contexto.NaoConfigurado:
+                check("sem vault, pedir a config e erro comum", True)
+            os.environ["VAULT_RAG_VAULT"] = str(cfg.vault)
+            check("com vault, recarregar pega a config nova",
+                  contexto.recarregar() is not None and contexto.config().vault == cfg.vault)
+        finally:
+            for k, v in guardado.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            contexto.recarregar()
+
+        # --- API da interface ---
+        import logging
+        import warnings
+
+        warnings.filterwarnings("ignore", message=".*httpx.*")
+        logging.getLogger("httpx").setLevel(logging.WARNING)  # uma linha por requisicao
+        from starlette.testclient import TestClient
+
+        config_web = tmp / "config-web.toml"
+        config_web.write_text(
+            f'vault = "{cfg.vault.as_posix()}"\ndb_path = "{cfg.db_path.as_posix()}"\n'
+            f'model = "stub"\nollama_url = "http://127.0.0.1:9"\n',
+            encoding="utf-8",
+        )
+        guardado = os.environ.get("VAULT_RAG_CONFIG")
+        os.environ["VAULT_RAG_CONFIG"] = str(config_web)
+        contexto.recarregar()
+        try:
+            # Import so depois de apontar o config para a pasta temporaria: o
+            # server.py descreve o vault ao ser importado, e isso abre o
+            # indice - com o config padrao, criava um index.db na raiz do
+            # projeto a cada rodada da suite.
+            from vault_rag.server import criar_app
+
+            app = criar_app(token="t0ken")
+            web = TestClient(app, base_url="http://127.0.0.1:8765")
+            H = {"Authorization": "Bearer t0ken"}
+
+            # As tres travas: cada uma fecha um caminho diferente.
+            check("web: Host de outro dominio e negado (DNS rebinding)",
+                  TestClient(app, base_url="http://evil.example:8765")
+                  .get("/api/estado", headers=H).status_code == 403)
+            check("web: sem token e negado", web.get("/api/estado").status_code == 401)
+            check("web: escrita vinda de outra origem e negada",
+                  web.post("/api/indexar", headers={**H, "Origin": "http://evil.example"})
+                  .status_code == 403)
+            check("web: /saude responde sem token e se identifica",
+                  web.get("/saude").json().get("app") == "vault-vector")
+            check("web: escrita da propria origem passa pela trava",
+                  web.post("/api/config", json={"valores": {"vault": "x"}},
+                           headers={**H, "Origin": "http://127.0.0.1:8765"}).status_code == 400)
+
+            # Exposto na rede de proposito (--host 0.0.0.0): o cliente chega
+            # pelo nome ou IP da maquina, e quem segura e o token.
+            na_rede = TestClient(criar_app(host="0.0.0.0", token="t0ken"),
+                                 base_url="http://notebook.lan:8765")
+            check("web: fora de loopback, Host da rede passa com token",
+                  na_rede.get("/api/estado", headers=H).status_code == 200)
+            check("web: fora de loopback, sem token continua negado",
+                  na_rede.get("/api/estado").status_code == 401)
+            criar_app(token="t0ken")  # volta os ganchos para o app de loopback
+
+            e = web.get("/api/estado", headers=H).json()
+            check("web: estado conta as notas", e["configurado"] and e["notas"] >= 7, str(e)[:120])
+
+            b = web.get("/api/buscar", params={"q": "access points"}, headers=H).json()
+            check("web: busca devolve hits com o boost decomposto",
+                  b["hits"] and all("fatores" in h for h in b["hits"]), str(b)[:120])
+
+            n = web.get("/api/nota", params={"caminho": "infra/backup-nas"}, headers=H).json()
+            check("web: nota vem com trechos e quem cita",
+                  n["path"] == "infra/backup-nas.md" and n["trechos"]
+                  and "infra/00-MOC.md" in n["citada_por"], str(n)[:160])
+
+            velho = web.post("/api/nota", headers=H, json={
+                "caminho": n["path"], "conteudo": n["conteudo"] + "\nnovo\n", "mtime": n["mtime"] - 60})
+            check("web: mtime velho vira 409 de conflito",
+                  velho.status_code == 409 and velho.json()["codigo"] == "conflito")
+            ok = web.post("/api/nota", headers=H, json={
+                "caminho": n["path"], "conteudo": n["conteudo"] + "\nlinha nova\n", "mtime": n["mtime"]})
+            versoes = ok.json()["nota"]["versoes"]
+            check("web: gravar guarda a versao anterior", ok.status_code == 200 and versoes,
+                  ok.text[:160])
+            volta = web.post("/api/nota/restaurar", headers=H, json={
+                "caminho": n["path"], "versao": versoes[0]["versao"],
+                "mtime": ok.json()["nota"]["mtime"]})
+            check("web: restaurar traz o texto de volta",
+                  volta.status_code == 200 and volta.json()["nota"]["conteudo"] == n["conteudo"],
+                  volta.text[:160])
+
+            check("web: config recusa chave que nao se ajusta",
+                  web.post("/api/config", headers=H, json={"valores": {"vault": "x"}})
+                  .status_code == 400)
+            r = web.post("/api/config", headers=H, json={"valores": {"rrf_k": 42}}).json()
+            check("web: config gravada vale na hora",
+                  r["valores"]["rrf_k"] == 42 and contexto.config().rrf_k == 42)
+        finally:
+            if guardado is None:
+                os.environ.pop("VAULT_RAG_CONFIG", None)
+            else:
+                os.environ["VAULT_RAG_CONFIG"] = guardado
+            contexto.recarregar()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

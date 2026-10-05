@@ -5,6 +5,7 @@ from __future__ import annotations
 import fnmatch
 import hashlib
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
@@ -17,8 +18,20 @@ from .meta import note_date, note_kind, resolve_link
 from .store import Store
 
 
+# Uma indexacao por processo. O app de desktop tem tres portas para
+# disparar uma - a interface, a ferramenta MCP e a reindexacao agendada - e
+# duas ao mesmo tempo embeddariam as mesmas notas em dobro e brigariam pela
+# escrita no SQLite. A segunda espera a primeira terminar.
+_INDEXANDO = threading.Lock()
+
+
 @dataclass
 class IndexReport:
+    # Notas a processar nesta passagem e quantas ja passaram, para quem
+    # acompanha o andamento. Ficam fora do as_text(): o relatorio final
+    # continua o mesmo de sempre.
+    total: int = 0
+    processadas: int = 0
     scanned: int = 0
     indexed: int = 0
     skipped: int = 0
@@ -129,8 +142,32 @@ def index_vault(
     cfg: Config,
     *,
     force: bool = False,
+    refazer_trechos: bool = False,
     verbose: bool = True,
     progress=None,
+) -> IndexReport:
+    """Indexa o que mudou desde a ultima vez (ou tudo, com force).
+
+    force refaz do zero, sem aproveitar vetor nenhum: e o caso de trocar o
+    modelo, em que os vetores antigos nao servem mais.
+
+    refazer_trechos corta de novo todas as notas, mesmo as que nao mudaram
+    no disco, mas reaproveita o vetor de todo trecho cujo texto continua
+    igual. E o caso de mudar target_chars, hard_max_chars ou min_chars: o
+    modelo e o mesmo, so a fronteira dos trechos andou.
+
+    progress(rel, report) e chamado a cada nota processada, depois do
+    embedding dela - report.processadas de report.total.
+    """
+    with _INDEXANDO:
+        return _index_vault(
+            cfg, force=force, refazer_trechos=refazer_trechos,
+            verbose=verbose, progress=progress,
+        )
+
+
+def _index_vault(
+    cfg: Config, *, force: bool, refazer_trechos: bool, verbose: bool, progress
 ) -> IndexReport:
     started = time.time()
     report = IndexReport()
@@ -166,12 +203,13 @@ def index_vault(
                 continue
 
             previous = known.get(rel)
-            if not force and previous and previous[0] == stat.st_mtime and previous[1] == stat.st_size:
+            todas = force or refazer_trechos
+            if not todas and previous and previous[0] == stat.st_mtime and previous[1] == stat.st_size:
                 report.skipped += 1
                 continue
             pendentes.append((path, rel, stat))
 
-        total = len(pendentes)
+        total = report.total = len(pendentes)
         if verbose and total:
             print(
                 f"{total} nota(s) para processar"
@@ -210,11 +248,14 @@ def index_vault(
             for (rel, stat, digest, note, vectors, hashes, erro), (path, _, _) in zip(
                 resultados_em_ordem(fatia), fatia
             ):
+                report.processadas += 1
+                if progress:
+                    progress(rel, report)
                 if erro:
                     report.errors.append(f"{rel}: {erro}")
                     continue
                 previous = known.get(rel)
-                if not force and previous and previous[2] == digest:
+                if not (force or refazer_trechos) and previous and previous[2] == digest:
                     store.conn.execute(
                         "UPDATE files SET mtime=?, size=? WHERE path=?",
                         (stat.st_mtime, stat.st_size, rel),
@@ -267,9 +308,7 @@ def index_vault(
                 report.indexed += 1
                 report.chunks += len(note.chunks)
 
-                if progress:
-                    progress(rel, report)
-                elif verbose:
+                if verbose and not progress:
                     print(
                         f"  [{report.indexed}/{total}] {rel} ({len(note.chunks)} chunks)",
                         file=sys.stderr,

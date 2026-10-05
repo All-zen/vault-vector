@@ -1,0 +1,18 @@
+.app { display: flex; height: 100%; }
+.principal { flex: 1; min-width: 0; overflow: auto; background: var(--surface-app); }
+.tela { min-height: 100%; animation: vv-fade var(--dur-base) var(--ease-out); }
+
+.centro { height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; }
+.falhou { width: min(520px, 100%); display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
+
+/* Molde de tela, usado por todas: largura de leitura e respiro. */
+:global(.tela-conteudo) {
+  margin: 0 auto;
+  padding: 40px 40px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+:global(.tela-titulo) { display: flex; flex-direction: column; gap: 6px; }
+:global(.tela-titulo) h1 { margin: 0; font: var(--type-title); color: var(--text-strong); }
+:global(.tela-titulo) p { margin: 0; color: var(--text-muted); max-width: 640px; text-wrap: pretty; }

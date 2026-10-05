@@ -1,0 +1,37 @@
+.barra {
+  width: var(--sidebar-w);
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 18px 12px;
+  background: var(--paper-2);
+  border-right: 1px solid var(--border-subtle);
+  overflow-y: auto;
+}
+/* Janela baixa: a barra rola, nada encolhe (o botao ficava espremido). */
+.barra > * { flex-shrink: 0; }
+
+.marca { display: flex; align-items: center; gap: 10px; padding: 0 8px; text-decoration: none; }
+.nome { font: 600 16px/1 var(--font-mono); letter-spacing: -0.02em; color: var(--ink-1); }
+.hifen { color: var(--accent); }
+
+.lista { display: flex; flex-direction: column; gap: 2px; }
+.titulo { padding: 0 10px 6px; }
+.aninhado { padding-left: 18px; animation: vv-rise var(--dur-slow) var(--ease-out) both; }
+
+.rodape {
+  margin-top: auto;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font: 400 12px/1.4 var(--font-mono);
+  color: var(--text-muted);
+}
+.servico { display: flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; }
+.servico:hover { color: var(--text-strong); }
+.ponto { width: 7px; height: 7px; border-radius: 9px; flex: none; }
+.pontoOk { background: var(--alta-fg); animation: vv-pulse 2.4s ease-out infinite; }
+.pontoFora { background: var(--baixa-fg); }
+.vault { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

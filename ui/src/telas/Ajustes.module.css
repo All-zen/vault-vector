@@ -1,0 +1,64 @@
+.tela {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 40px 32px 80px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+  align-items: flex-start;
+}
+.principal { flex: 999 1 520px; display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.lateral { flex: 1 1 280px; position: sticky; top: 24px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+
+.secao { display: flex; flex-direction: column; }
+.secao h2 { margin: 0 0 4px; font: var(--type-heading); font-size: 18px; color: var(--text-strong); }
+.secao > p { margin: 0 0 12px; font: var(--type-small); color: var(--text-muted); }
+
+.linha {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  align-items: center;
+  padding: 16px 0;
+  border-top: 1px solid var(--border-subtle);
+}
+.textos { flex: 999 1 300px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.nome { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.rotulo { font: 600 14px/1.3 var(--font-sans); color: var(--text-strong); }
+.chave { font: 400 11px/1 var(--font-mono); color: var(--text-faint); background: none; padding: 0; }
+.padrao {
+  height: 20px;
+  padding: 0 7px;
+  border: 1px solid var(--vv-200);
+  border-radius: var(--radius-xs);
+  background: var(--vv-50);
+  color: var(--vv-400);
+  font: 600 11px/1 var(--font-sans);
+  cursor: pointer;
+}
+.padrao:hover { color: var(--ink-1); }
+.desc { font: var(--type-small); color: var(--text-muted); text-wrap: pretty; }
+.controle { flex: 1 1 220px; max-width: 340px; min-width: 0; }
+
+.rrf { display: flex; align-items: flex-end; gap: 3px; height: 54px; margin: -4px 0 14px; }
+.rrf span { flex: 1; background: var(--vv-200); border-radius: 2px 2px 0 0; transition: height 400ms var(--ease-out); }
+.rrf .topo { background: var(--vv-400); }
+
+.interruptor { padding: 4px 0 16px; }
+.apagado { opacity: 0.4; pointer-events: none; transition: opacity var(--dur-base); }
+
+.previa { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+.previaTopo { display: flex; align-items: center; gap: 8px; color: var(--text-muted); flex-wrap: wrap; }
+.notaPrevia { flex: 1 1 240px; }
+.previaInfo { font: var(--type-small); color: var(--text-faint); }
+
+.arquivo { overflow: hidden; }
+.arquivoTopo { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--border-subtle); color: var(--text-muted); }
+.arquivoNome { flex: 1; font: 500 12px/1 var(--font-mono); color: var(--text-strong); }
+.arquivoInfo { font: 400 11px/1 var(--font-mono); color: var(--text-faint); }
+.toml { margin: 0; padding: 10px 0; max-height: 420px; overflow: auto; background: var(--term-bg); font: 400 12px/1.7 var(--font-mono); color: var(--term-dim); }
+.toml div { padding: 0 14px; white-space: pre; }
+.toml .mudou { background: rgba(43, 179, 166, 0.12); color: var(--term-fg); animation: vv-fade var(--dur-slow); }
+.mudou .marca { color: var(--term-accent); }
+
+.botoes { display: flex; gap: 8px; }

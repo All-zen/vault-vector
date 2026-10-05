@@ -13,12 +13,23 @@ dependencies = [
     "tomli>=2.0; python_version < '3.11'",
 ]
 
+[project.optional-dependencies]
+# O app de desktop: janela nativa (WebView2 no Windows), icone na bandeja e
+# o desenho do icone. Fora daqui, o servidor MCP roda sem GUI nenhuma.
+desktop = [
+    "pywebview>=5.0",
+    "pystray>=0.19",
+    "pillow>=10.0",
+]
+
 [project.scripts]
 vault-vector = "vault_rag.cli:main"
 
 [project.gui-scripts]
 # .exe sem console: e o que a tarefa agendada roda no logon
 vault-vector-servico = "vault_rag.cli:main_servico"
+# o app de desktop; e o que a chave Run do Windows abre, com --escondido
+vault-vector-app = "vault_rag.desktop:main"
 
 [build-system]
 requires = ["setuptools>=68"]
@@ -26,3 +37,7 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["vault_rag"]
+
+[tool.setuptools.package-data]
+# A interface compilada (npm --prefix ui run build) viaja dentro do pacote.
+vault_rag = ["static/*", "static/assets/*"]

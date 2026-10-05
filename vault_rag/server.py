@@ -16,10 +16,8 @@ try:  # mcp >= 2
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Servidor
 
-from . import api
-from .config import load_config
+from . import api, contexto
 
-cfg = load_config()
 
 def _instrucoes() -> str:
     """Descricao do vault para o modelo.
@@ -29,6 +27,13 @@ def _instrucoes() -> str:
     - assim o projeto serve a qualquer vault sem carregar o conteudo de quem o
     escreveu.
     """
+    cfg = contexto.tentar()
+    if cfg is None:
+        return (
+            "Busca e escrita num vault de notas markdown, que ainda nao foi "
+            "configurado. Peca para a pessoa abrir o vault-vector e escolher "
+            "a pasta das notas."
+        )
     if getattr(cfg, "instructions", ""):
         return cfg.instructions
     try:
@@ -78,6 +83,7 @@ def vault_search(
         expand: devolve a secao inteira em volta do trecho que casou, em vez
             do trecho isolado. Desligue para respostas mais curtas.
     """
+    cfg = contexto.config()
     top_k = max(1, min(int(top_k), 20))
     hits = api.search(
         cfg,
@@ -99,6 +105,7 @@ def vault_read(path: str, heading: str = "") -> str:
             tambem o alvo de um wikilink, sem a extensao.
         heading: opcional, titulo exato de uma secao para recortar so ela.
     """
+    cfg = contexto.config()
     result = api.read_note(cfg, path, heading or None)
     if "error" in result:
         return result["error"]
@@ -111,6 +118,7 @@ def vault_read(path: str, heading: str = "") -> str:
 @mcp.tool()
 def vault_list_sections() -> str:
     """Lista as secoes (pastas raiz) do vault com quantas notas cada uma tem."""
+    cfg = contexto.config()
     rows = api.list_sections(cfg)
     if not rows:
         return "Indice vazio. Rode 'vault-rag index'."
@@ -139,6 +147,7 @@ def vault_edit(path: str, old_str: str, new_str: str, replace_all: bool = False)
     """
     from .writer import WriteError, edit_note
 
+    cfg = contexto.config()
     try:
         r = edit_note(cfg, path, old_str, new_str, replace_all=replace_all)
     except WriteError as exc:
@@ -167,6 +176,7 @@ def vault_append(path: str, content: str) -> str:
     """
     from .writer import WriteError, append_note
 
+    cfg = contexto.config()
     try:
         r = append_note(cfg, path, content)
     except WriteError as exc:
@@ -192,6 +202,7 @@ def vault_write(path: str, content: str, overwrite: bool = False) -> str:
     """
     from .writer import WriteError, write_note
 
+    cfg = contexto.config()
     try:
         r = write_note(cfg, path, content, overwrite=overwrite)
     except WriteError as exc:
@@ -214,6 +225,7 @@ def vault_list(pasta: str = "") -> str:
     """
     from .writer import WriteError, list_dir
 
+    cfg = contexto.config()
     try:
         r = list_dir(cfg, pasta)
     except (WriteError, ValueError) as exc:
@@ -243,6 +255,7 @@ def vault_move(origem: str, destino: str, atualizar_links: bool = True) -> str:
     """
     from .writer import WriteError, move_note
 
+    cfg = contexto.config()
     try:
         r = move_note(cfg, origem, destino, atualizar_links=atualizar_links)
     except (WriteError, ValueError) as exc:
@@ -269,6 +282,7 @@ def vault_delete(path: str) -> str:
     """
     from .writer import WriteError, delete_note
 
+    cfg = contexto.config()
     try:
         r = delete_note(cfg, path)
     except (WriteError, ValueError) as exc:
@@ -296,6 +310,7 @@ def vault_reindex(force: bool = False) -> str:
     """
     from .indexer import index_vault, stale_files
 
+    cfg = contexto.config()
     if not force:
         pending = stale_files(cfg)
         if len(pending) > 150:
@@ -312,6 +327,7 @@ def vault_reindex(force: bool = False) -> str:
 @mcp.tool()
 def vault_index_status() -> str:
     """Estado do indice: quantas notas, quantos chunks e o que mudou desde a ultima indexacao."""
+    cfg = contexto.config()
     info = api.index_status(cfg)
     return json.dumps(info, ensure_ascii=False, indent=2)
 
@@ -337,11 +353,48 @@ def token_do_projeto(criar: bool = False) -> str:
     return valor
 
 
+def _nomes_das_ferramentas() -> list[str]:
+    import asyncio
+
+    try:
+        return sorted(t.name for t in asyncio.run(mcp.list_tools()))
+    except Exception:
+        return []  # so serve para a tela de conexao listar; nao vale travar
+
+
+def criar_app(host: str = "127.0.0.1", port: int = 8765, token: str = ""):
+    """MCP em /mcp, interface em /, API em /api: um processo, uma porta.
+
+    Separado de serve_http porque o app de desktop roda o mesmo app numa
+    thread, ao lado da janela e do icone da bandeja.
+    """
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+
+    from . import __version__, web
+
+    # Nao mexe em mcp.settings: na 2.x host/port sairam do objeto. Quem
+    # decide onde escutar e o uvicorn, e isso vale nas duas.
+    app = mcp.streamable_http_app()
+    # Resposta que identifica o processo: a segunda instancia do app usa
+    # para saber se a porta esta com o vault-vector ou com outra coisa.
+    app.routes.append(Route(
+        "/saude", lambda r: JSONResponse({"ok": True, "app": "vault-vector", "versao": __version__})
+    ))
+    # As configs ja escritas (pelo 'vault-vector token' e pelas versoes
+    # anteriores) apontam para /mcp/, e o SDK atual responde em /mcp,
+    # redirecionando a barra com 307. Cliente que nao repete o POST no
+    # redirect perderia a conexao: responde nos dois caminhos.
+    rota_mcp = next((r for r in app.routes if getattr(r, "path", "") == "/mcp"), None)
+    if rota_mcp is not None:
+        app.routes.append(Route("/mcp/", endpoint=rota_mcp.endpoint))
+    web.montar(app, token=token, host=host, porta=port, ferramentas=_nomes_das_ferramentas())
+    return app
+
+
 def serve_http(host: str = "127.0.0.1", port: int = 8765, token: str = "") -> None:
     """Sobe o servidor em HTTP local, para um processo servir todos os clientes."""
     import uvicorn
-    from starlette.middleware.base import BaseHTTPMiddleware
-    from starlette.responses import JSONResponse
 
     # Cinto de seguranca: sob pythonw.exe stdout/stderr sao None e o logging
     # do uvicorn estoura antes de abrir a porta. Quem entra por main_servico()
@@ -353,22 +406,9 @@ def serve_http(host: str = "127.0.0.1", port: int = 8765, token: str = "") -> No
         if sys.stderr is None:
             sys.stderr = vazio
 
-    # Nao mexe em mcp.settings: na 2.x host/port sairam do objeto. Quem
-    # decide onde escutar e o uvicorn logo abaixo, e isso vale nas duas.
-    app = mcp.streamable_http_app()
-
-    if token:
-        class ExigeToken(BaseHTTPMiddleware):
-            async def dispatch(self, request, call_next):
-                if request.url.path == "/saude":
-                    return JSONResponse({"ok": True})
-                if request.headers.get("authorization") != f"Bearer {token}":
-                    return JSONResponse({"error": "token invalido ou ausente"}, 401)
-                return await call_next(request)
-
-        app.add_middleware(ExigeToken)
-
+    app = criar_app(host, port, token)
     print(f"vault-rag HTTP em http://{host}:{port}/mcp/", file=sys.stderr)
+    print(f"interface em http://127.0.0.1:{port}/", file=sys.stderr)
     print(f"token: {'exigido' if token else 'DESLIGADO (qualquer processo local acessa)'}",
           file=sys.stderr)
     uvicorn.run(app, host=host, port=port, log_level="warning")

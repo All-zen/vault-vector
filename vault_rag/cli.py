@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import time
+import unicodedata
 from pathlib import Path
 
 from . import api
@@ -17,7 +18,9 @@ from .indexer import index_vault
 def cmd_index(args) -> int:
     cfg = load_config({"model": args.model, "ollama_url": args.ollama})
     print(f"Vault: {cfg.vault}\nIndice: {cfg.db_path}\nModelo: {cfg.model} @ {cfg.ollama_url}\n")
-    report = index_vault(cfg, force=args.force, verbose=not args.quiet)
+    report = index_vault(
+        cfg, force=args.force, refazer_trechos=args.refazer_trechos, verbose=not args.quiet
+    )
     print("\n" + report.as_text())
     if report.errors and report.indexed:
         print(
@@ -66,100 +69,42 @@ def cmd_stats(args) -> int:
     return 0
 
 
+def _terminal(texto: str) -> str:
+    """Tira acento e travessao do que vai para o terminal.
+
+    O texto dos diagnosticos esta em portugues correto porque a interface
+    mostra igual. No terminal, saida redirecionada sai em cp1252 e o
+    PowerShell le em outra codificacao: "memória" vira "mem�ria".
+    """
+    texto = texto.replace("—", "-").replace("–", "-")
+    return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+
+
 def cmd_doctor(args) -> int:
     """Checa tudo que a busca precisa e diz o que fazer quando algo falta."""
-    import json as _json
-    import urllib.request
+    from .diagnostico import diagnosticar, problemas
 
-    problemas: list[str] = []
-
-    def linha(ok, texto, dica=""):
-        print(f"  {'ok  ' if ok else 'FALTA'}  {texto}")
-        if not ok and dica:
-            print(f"          -> {dica}")
-            problemas.append(texto)
-
-    print("== configuracao ==")
     try:
         cfg = load_config()
-        linha(True, f"config lida (vault: {cfg.vault})")
     except SystemExit as exc:
-        linha(False, "config", str(exc))
+        print("== configuracao ==")
+        print(f"  FALTA  config\n          -> {exc}")
         return 1
-    linha(cfg.vault.is_dir(), f"vault existe: {cfg.vault}",
-          "confira o caminho em config.toml")
 
-    print("\n== Ollama ==")
-    tags = None
-    try:
-        with urllib.request.urlopen(f"{cfg.ollama_url}/api/tags", timeout=8) as r:
-            tags = _json.loads(r.read().decode())
-        linha(True, f"servico respondendo em {cfg.ollama_url}")
-    except Exception:
-        linha(False, f"servico em {cfg.ollama_url}",
-              "abra o app do Ollama, ou rode 'ollama serve'")
-
-    if tags is not None:
-        nomes = [m.get("name", "") for m in tags.get("models", [])]
-        tem = cfg.model in nomes or cfg.model.split(":")[0] in {n.split(":")[0] for n in nomes}
-        linha(tem, f"modelo '{cfg.model}' baixado", f"rode: ollama pull {cfg.model}")
-        try:
-            with urllib.request.urlopen(f"{cfg.ollama_url}/api/ps", timeout=8) as r:
-                carregados = _json.loads(r.read().decode()).get("models", [])
-            quente = any(cfg.model.split(":")[0] in m.get("name", "") for m in carregados)
-            print(f"  {'ok  ' if quente else 'aviso'}  modelo "
-                  + ("carregado na memoria (primeira busca instantanea)" if quente
-                     else "descarregado — a primeira busca paga ~30-60s de recarga"))
-            if not quente:
-                print("          -> OLLAMA_KEEP_ALIVE evita isso; veja instalar-servicos.ps1")
-        except Exception:
-            pass
-
-    print("\n== indice ==")
-    try:
-        info = api.index_status(cfg)
-    except Exception as exc:
-        linha(False, "indice legivel", str(exc))
-        return 1
-    existe = (info.get("files") or 0) > 0
-    linha(existe, f"{info.get('files', 0)} nota(s), {info.get('chunks', 0)} trecho(s), "
-                  f"{info.get('db_mb', 0)} MB", "rode: vault-rag index")
-    pend = info.get("pending", 0)
-    print(f"  {'ok  ' if pend == 0 else 'aviso'}  {pend} nota(s) pendente(s)"
-          + ("" if pend == 0 else " — rode 'vault-rag index' ou espere a tarefa agendada"))
-    modelo_indice = info.get("model")
-    if modelo_indice and modelo_indice != cfg.model:
-        linha(False, f"indice foi feito com '{modelo_indice}', config pede '{cfg.model}'",
-              "rode: vault-rag index --force")
-    print(f"  ultima indexacao: {info.get('last_index') or 'nunca'}")
-
-    print("\n== busca ==")
-    try:
-        hits = api.search(cfg, "rede servidor backup", top_k=2)
-        linha(bool(hits), f"consulta de teste devolveu {len(hits)} resultado(s)",
-              "o indice pode estar vazio")
-        if hits:
-            modos = []
-            if any(h.vec_rank is not None for h in hits):
-                modos.append("semantico")
-            if any(h.fts_rank is not None for h in hits):
-                modos.append("literal")
-            print(f"  ok    lados ativos: {' + '.join(modos)}")
-            if "semantico" not in modos:
-                print("          -> so literal: o Ollama nao respondeu, a busca caiu para o modo degradado")
-    except Exception as exc:
-        linha(False, "busca", str(exc))
-
-    print("\n== escrita ==")
-    hist = cfg.vault / "_historico"
-    print(f"  ok    historico em {hist}"
-          + (f" ({len(list(hist.rglob('*.md')))} copias)" if hist.is_dir() else " (ainda vazio)"))
-    gravavel = os.access(cfg.vault, os.W_OK)
-    linha(gravavel, "vault gravavel", "confira permissoes da pasta")
+    grupos = diagnosticar(cfg)
+    marca = {"ok": "ok   ", "aviso": "aviso", "falta": "FALTA"}
+    for i, grupo in enumerate(grupos):
+        print(("\n" if i else "") + _terminal(f"== {grupo.nome} =="))
+        for item in grupo.itens:
+            detalhe = f"  ({item.detalhe})" if item.detalhe else ""
+            print(_terminal(f"  {marca[item.status]}  {item.rotulo}{detalhe}"))
+            if item.dica:
+                print(_terminal(f"          -> {item.dica}"))
 
     print()
-    if problemas:
-        print(f"{len(problemas)} item(ns) precisam de atencao (veja as setas acima).")
+    faltas = problemas(grupos)
+    if faltas:
+        print(f"{len(faltas)} item(ns) precisam de atencao (veja as setas acima).")
         return 1
     print("Tudo pronto.")
     return 0
@@ -171,33 +116,10 @@ def cmd_bench(args) -> int:
     Existe porque o numero certo depende da maquina e das variaveis do
     Ollama, e chutar custa mais tempo do que medir.
     """
-    import time
-    from concurrent.futures import ThreadPoolExecutor
-
-    from .chunker import chunk_markdown
-    from .embed import OllamaEmbedder
-    from .indexer import iter_notes
+    from .medicao import amostra_de_trechos, medir_paralelismo, melhor_nivel, paralelismo_inutil
 
     cfg = load_config({"model": args.model, "ollama_url": args.ollama})
-    embedder = OllamaEmbedder(
-        cfg.ollama_url, cfg.model, cfg.request_timeout, cfg.batch_size,
-        num_thread=args.num_thread or cfg.num_thread,
-    )
-    embedder.check()
-
-    textos: list[str] = []
-    total_notas = 0
-    for path, rel in iter_notes(cfg):
-        total_notas += 1
-        if len(textos) < args.samples:
-            note = chunk_markdown(
-                path.read_text(encoding="utf-8", errors="replace"),
-                target_chars=cfg.target_chars,
-                hard_max_chars=cfg.hard_max_chars,
-                min_chars=cfg.min_chars,
-            )
-            textos += [c.text for c in note.chunks]
-    textos = textos[: args.samples]
+    textos, total_notas = amostra_de_trechos(cfg, args.samples)
     if not textos:
         print("Nenhuma nota para medir.", file=sys.stderr)
         return 1
@@ -208,39 +130,22 @@ def cmd_bench(args) -> int:
     if args.num_thread or cfg.num_thread:
         print(f"num_thread forcado: {args.num_thread or cfg.num_thread}")
     print("Aquecendo...", file=sys.stderr)
-    embedder.embed(textos[:2])
-
-    niveis = [int(x) for x in args.levels.split(",") if x.strip()]
-    import math
 
     print(f"\n{'paralelo':>9s} {'chamadas':>9s} {'tempo':>8s} {'trechos/s':>11s} {'ganho':>7s}")
     print("-" * 50)
-    base = None
-    melhor = (0.0, 1)
-    for nivel in niveis:
-        inicio = time.time()
-        if nivel <= 1:
-            embedder.embed(textos)
-        else:
-            fatias = [textos[i::nivel] for i in range(nivel)]
-            with ThreadPoolExecutor(max_workers=nivel) as pool:
-                list(pool.map(embedder.embed, fatias))
-        dt = time.time() - inicio
-        taxa = len(textos) / dt
-        if base is None:
-            base = dt
-        ganho = base / dt
-        if taxa > melhor[0]:
-            melhor = (taxa, nivel)
-        if nivel <= 1:
-            chamadas = math.ceil(len(textos) / cfg.batch_size)
-        else:
-            chamadas = sum(
-                math.ceil(len(textos[i::nivel]) / cfg.batch_size) for i in range(nivel)
-            )
-        print(f"{nivel:>9d} {chamadas:>9d} {dt:>7.1f}s {taxa:>10.1f} {ganho:>6.1f}x")
+    resultados = medir_paralelismo(
+        cfg,
+        textos,
+        [int(x) for x in args.levels.split(",") if x.strip()],
+        num_thread=args.num_thread,
+        ao_medir=lambda r: print(
+            f"{r['paralelo']:>9d} {r['chamadas']:>9d} {r['segundos']:>7.1f}s"
+            f" {r['taxa']:>10.1f} {r['ganho']:>6.1f}x"
+        ),
+    )
 
-    taxa, nivel = melhor
+    melhor = melhor_nivel(resultados)
+    taxa, nivel = melhor["taxa"], melhor["paralelo"]
     print("-" * 50)
     print(f"\nMelhor: parallel = {nivel}  ({taxa:.1f} trechos/s)")
     chunks_estimados = total_notas * 11
@@ -248,7 +153,7 @@ def cmd_bench(args) -> int:
         f"Nesse ritmo, as ~{total_notas} notas do vault (~{chunks_estimados} trechos) "
         f"levam ~{chunks_estimados / taxa / 60:.0f} min."
     )
-    if nivel == 1 or (base and base / (len(textos) / taxa) < 1.3):
+    if paralelismo_inutil(resultados):
         print(
             "\nO paralelismo quase nao mudou nada. Duas causas possiveis:\n"
             "  1. OLLAMA_NUM_PARALLEL ainda esta em 1 (o default). Confira com:\n"
@@ -276,6 +181,12 @@ def cmd_serve(args) -> int:
     else:
         serve_main()
     return 0
+
+
+def cmd_app(args) -> int:
+    from .desktop import main as app_main
+
+    return app_main(["--escondido"] if args.escondido else [])
 
 
 def cmd_token(args) -> int:
@@ -309,105 +220,60 @@ def cmd_calibrar(args) -> int:
     ela separa as duas populacoes NESTE vault - em vez de herdar um numero
     chutado.
     """
-    from .embed import EmbeddingError, OllamaEmbedder
-    from .store import Store
+    from .medicao import FORA_DO_VAULT, medir_calibracao
 
     cfg = load_config({"model": args.model, "ollama_url": args.ollama})
+    n_fora = len(FORA_DO_VAULT)
+    print(f"Indice: {cfg.db_path}\nModelo: {cfg.model}\n")
+    print(f"A. {n_fora} perguntas que o vault NAO responde")
 
-    # Perguntas que o vault comprovadamente NAO responde. Escolhidas para nao
-    # compartilhar vocabulario com o dominio dele - e duas de proposito que
-    # compartilham ("receita", "rede"), porque sao esses os casos que enganam.
-    fora = [
-        "receita de pao de queijo mineiro",
-        "route reflector do BGP",
-        "como podar roseiras no inverno",
-        "escalacao do Gremio na final de 1983",
-        "dosagem de paracetamol para crianca",
-        "conjugacao de verbo irregular em alemao",
-        "preco do quilo do camarao rosa",
-        "regra do roque no xadrez",
-        "como trocar a correia dentada do carro",
-        "rede de protecao para varanda de apartamento",
-    ]
+    def mostrar(item, feito, total):
+        if feito == n_fora + 1:
+            print(f"\nB. {total - n_fora} titulos de notas reais (tem resposta por construcao)")
+        if item.get("erro"):
+            print(f"  falhou em {item['pergunta']!r}: {item['erro']}", file=sys.stderr)
+        elif not args.quiet:
+            fora = item["grupo"] == "fora"
+            i, n = (feito, n_fora) if fora else (feito - n_fora, total - n_fora)
+            print(f"  {'sem' if fora else 'com'} {i:>2}/{n}  {item['sim']:.4f}  {item['pergunta'][:58]}")
 
-    store = Store(cfg.db_path, cfg.embed_dim)
     try:
-        rows = store.conn.execute(
-            "SELECT title FROM files WHERE n_chunks > 0 AND title != ''"
-            " ORDER BY RANDOM() LIMIT ?",
-            (args.amostra,),
-        ).fetchall()
-        dentro = [r["title"] for r in rows]
-        if not dentro:
-            print("Indice vazio. Rode 'vault-rag index' primeiro.", file=sys.stderr)
-            return 1
+        medida = medir_calibracao(cfg, amostra=args.amostra, ao_medir=mostrar)
+    except ValueError as exc:
+        print(str(exc), file=sys.stderr)
+        return 1
 
-        embedder = OllamaEmbedder(
-            cfg.ollama_url, cfg.model, cfg.request_timeout, cfg.batch_size
-        )
+    s = medida["sugestao"]
+    if s is None:
+        print("\nAmostra insuficiente.", file=sys.stderr)
+        return 1
 
-        def medir(perguntas, rotulo):
-            valores = []
-            for i, q in enumerate(perguntas, 1):
-                try:
-                    vec = embedder.embed_one(q)
-                except EmbeddingError as exc:
-                    print(f"  falhou em {q!r}: {exc}", file=sys.stderr)
-                    continue
-                s = store.similaridade_maxima(vec)
-                valores.append((s, q))
-                if not args.quiet:
-                    print(f"  {rotulo} {i:>2}/{len(perguntas)}  {s:.4f}  {q[:58]}")
-            return valores
+    print("\n" + "=" * 66)
+    print(f"  sem resposta : min {min(i['sim'] for i in medida['fora']):.4f}"
+          f"  mediana {s['mediana_fora']:.4f}  MAX {s['teto_fora']:.4f}")
+    print(f"  com resposta : MIN {s['piso_dentro']:.4f}  mediana {s['mediana_dentro']:.4f}"
+          f"  max {max(i['sim'] for i in medida['dentro']):.4f}")
+    print("=" * 66)
 
-        print(f"Indice: {cfg.db_path}\nModelo: {cfg.model}\n")
-        print(f"A. {len(fora)} perguntas que o vault NAO responde")
-        sem = medir(fora, "sem")
-        print(f"\nB. {len(dentro)} titulos de notas reais (tem resposta por construcao)")
-        com = medir(dentro, "com")
+    if not s["sobrepoe"]:
+        print("\n  As duas populacoes NAO se sobrepoem.")
+        print(f"  Piso sugerido: min_score = {s['sugerido']:.3f}")
+        print(f"  (hoje esta em {cfg.min_score} - por isso nada e filtrado)")
+    else:
+        print(f"\n  As populacoes se sobrepoem entre {s['piso_dentro']:.4f} e {s['teto_fora']:.4f}.")
+        print("  Piso conservador (corta todo o ruido, perde algumas boas):")
+        print(f"    min_score = {s['conservador']:.3f}")
+        print("  Piso equilibrado (mantem 90% das boas):")
+        print(f"    min_score = {s['equilibrado']:.3f}")
+        print(f"\n  No conservador, {s['perdidas_no_conservador']} de {len(medida['dentro'])} perguntas boas")
+        print("  ficariam sem resposta. Vale se responder errado custa mais.")
 
-        if not sem or not com:
-            print("\nAmostra insuficiente.", file=sys.stderr)
-            return 1
-
-        sem_v = sorted(s for s, _ in sem)
-        com_v = sorted(s for s, _ in com)
-        teto_sem = sem_v[-1]
-        piso_com = com_v[0]
-        p10_com = com_v[max(0, len(com_v) // 10)]
-
-        print("\n" + "=" * 66)
-        print(f"  sem resposta : min {sem_v[0]:.4f}  mediana {sem_v[len(sem_v)//2]:.4f}  MAX {teto_sem:.4f}")
-        print(f"  com resposta : MIN {piso_com:.4f}  mediana {com_v[len(com_v)//2]:.4f}  max {com_v[-1]:.4f}")
-        print("=" * 66)
-
-        if teto_sem < piso_com:
-            sugerido = (teto_sem + piso_com) / 2
-            print(f"\n  As duas populacoes NAO se sobrepoem.")
-            print(f"  Piso sugerido: min_score = {sugerido:.3f}")
-            print(f"  (hoje esta em {cfg.min_score} - por isso nada e filtrado)")
-        else:
-            # Sobreposicao: escolher o piso e trocar falso positivo por falso
-            # negativo. Prefiro o teto do ruido, que erra para o lado de nao
-            # responder - resposta errada com confianca e o pior dos dois.
-            print(f"\n  As populacoes se sobrepoem entre {piso_com:.4f} e {teto_sem:.4f}.")
-            print(f"  Piso conservador (corta todo o ruido, perde algumas boas):")
-            print(f"    min_score = {teto_sem + 0.005:.3f}")
-            print(f"  Piso equilibrado (mantem 90% das boas):")
-            print(f"    min_score = {p10_com:.3f}")
-            n_perdidas = sum(1 for s in com_v if s < teto_sem + 0.005)
-            print(f"\n  No conservador, {n_perdidas} de {len(com_v)} perguntas boas")
-            print(f"  ficariam sem resposta. Vale se responder errado custa mais.")
-
-        print(f"\n  Depois de escolher, edite min_score no config.toml.")
-        piores = sorted(sem, reverse=True)[:3]
-        print(f"\n  As 3 perguntas sem resposta que mais enganaram:")
-        for s, q in piores:
-            print(f"    {s:.4f}  {q}")
-        print()
-        return 0
-    finally:
-        store.close()
+    print("\n  Depois de escolher, edite min_score no config.toml.")
+    print("\n  As 3 perguntas sem resposta que mais enganaram:")
+    for i in sorted(medida["fora"], key=lambda i: -i["sim"])[:3]:
+        print(f"    {i['sim']:.4f}  {i['pergunta']}")
+    print()
+    return 0
 
 
 def _gerar_modelo_perguntas(cfg, quantas: int) -> str:
@@ -484,19 +350,13 @@ def cmd_testar_confianca(args) -> int:
         print("  vault-rag testar-confianca --gerar-modelo perguntas.txt")
         return 1
 
+    from .medicao import ler_perguntas
+
     caminho = Path(args.perguntas)
     if not caminho.is_file():
         print(f"arquivo nao encontrado: {caminho}", file=sys.stderr)
         return 1
-    perguntas = []
-    for linha in caminho.read_text(encoding="utf-8").splitlines():
-        linha = linha.strip()
-        if not linha or linha.startswith("#"):
-            continue
-        pergunta, _, alvo = linha.partition("|")
-        if pergunta.strip().startswith("REESCREVA"):
-            continue
-        perguntas.append((pergunta.strip(), alvo.strip()))
+    perguntas = ler_perguntas(caminho)
     if not perguntas:
         print("Nenhuma pergunta no arquivo - as linhas REESCREVA ainda nao foram",
               file=sys.stderr)
@@ -618,16 +478,7 @@ def cmd_init(args) -> int:
     criar_do_zero = args.criar
 
     if not vault and not criar_do_zero:
-        candidatos = []
-        for base in (Path.home(), Path.home() / "Documents", Path.home() / "Documentos"):
-            if not base.is_dir():
-                continue
-            try:
-                for d in base.iterdir():
-                    if d.is_dir() and (d / ".obsidian").is_dir():
-                        candidatos.append(d)
-            except OSError:
-                continue
+        candidatos = api.procurar_vaults()
 
         if candidatos:
             print("Vaults do Obsidian encontrados:")
@@ -788,6 +639,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("index", help="indexa o vault (incremental por padrao)")
     p.add_argument("--force", action="store_true", help="reindexa tudo do zero")
+    p.add_argument("--refazer-trechos", action="store_true",
+                   help="corta todas as notas de novo (depois de mudar o recorte), "
+                        "reaproveitando o vetor de trecho que nao mudou")
     p.add_argument("--quiet", action="store_true")
     p.set_defaults(func=cmd_index)
 
@@ -826,6 +680,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--sem-token", action="store_true", help="desliga a exigencia de token")
     p.set_defaults(func=cmd_serve)
 
+    p = sub.add_parser("app", help="abre o app de desktop: janela, bandeja e servidor")
+    p.add_argument("--escondido", action="store_true", help="so o icone da bandeja")
+    p.set_defaults(func=cmd_app)
+
     p = sub.add_parser(
         "servico",
         help="igual a 'serve --http', mas e o que a tarefa agendada chama: "
@@ -860,7 +718,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def abrir_log_do_servico():
+def abrir_log_do_servico(nome: str = "servico.log"):
     """Troca stdout/stderr por um arquivo, e devolve o caminho.
 
     Um gui-script no Windows roda sob pythonw.exe, e la sys.stdout e
@@ -874,11 +732,11 @@ def abrir_log_do_servico():
     from pathlib import Path
 
     raiz = Path(__file__).resolve().parent.parent
-    log = raiz / "servico.log"
+    log = raiz / nome
     try:
         # Um servico que roda meses nao pode virar um log de gigabytes.
         if log.is_file() and log.stat().st_size > 2_000_000:
-            log.replace(raiz / "servico.log.anterior")
+            log.replace(raiz / f"{nome}.anterior")
         fluxo = open(log, "a", encoding="utf-8", errors="replace", buffering=1)
     except OSError:
         # Sem lugar para escrever, o que importa e o servico subir mesmo assim.

@@ -1,0 +1,70 @@
+.grafico {
+  display: grid;
+  grid-template-columns: 96px minmax(0, 1fr);
+  row-gap: 6px;
+  column-gap: 12px;
+  user-select: none;
+}
+
+.valores { position: relative; height: 16px; font: 500 11px/1 var(--font-mono); }
+.valores span { position: absolute; white-space: nowrap; }
+/* Cada rotulo fica do lado de fora da sua linha: com as duas proximas,
+   centralizar sobrepunha os numeros. */
+.vLo { color: var(--media-fg); transform: translateX(calc(-100% - 4px)); }
+.vHi { color: var(--alta-fg); transform: translateX(4px); }
+
+.rotulos {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  font: var(--type-label);
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.area { position: relative; height: 96px; }
+.zonas { position: absolute; inset: 0; display: flex; border-radius: var(--radius-sm); overflow: hidden; }
+.zBaixa { background: var(--baixa-bg); }
+.zMedia { background: var(--media-bg); }
+.zAlta { flex: 1; background: var(--alta-bg); }
+.metadeCima { position: absolute; left: 0; right: 0; top: 0; height: 50%; }
+.metadeBaixo { position: absolute; left: 0; right: 0; bottom: 0; height: 50%; }
+
+.ponto {
+  position: absolute;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin: -7px 0 0 -7px;
+  border-radius: 99px;
+  border: 2px solid;
+  transition: background var(--dur-slow), border-color var(--dur-slow), box-shadow var(--dur-slow), left var(--dur-slow);
+  animation: vv-pop 420ms var(--ease-out) both;
+}
+.fora { background: transparent; }
+.alta { border-color: var(--alta-fg); }
+.media { border-color: var(--media-fg); }
+.baixa { border-color: var(--baixa-fg); }
+.dentro.alta { background: var(--alta-fg); box-shadow: 0 0 10px var(--alta-fg); }
+.dentro.media { background: var(--media-fg); box-shadow: 0 0 10px var(--media-fg); }
+.dentro.baixa { background: var(--baixa-fg); box-shadow: 0 0 10px var(--baixa-fg); }
+
+.alca {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  width: 18px;
+  margin-left: -9px;
+  display: flex;
+  justify-content: center;
+  z-index: 2;
+  border-radius: 4px;
+}
+.alca span { width: 2px; height: 100%; }
+.lo span { background: var(--media-fg); }
+.hi span { background: var(--alta-fg); }
+.lo.arrastando span, .lo:focus-visible span { box-shadow: 0 0 12px var(--media-fg); }
+.hi.arrastando span, .hi:focus-visible span { box-shadow: 0 0 12px var(--alta-fg); }
+
+.eixo { display: flex; justify-content: space-between; font: 400 11px/1 var(--font-mono); color: var(--text-faint); }

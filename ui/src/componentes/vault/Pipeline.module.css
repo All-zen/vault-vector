@@ -1,0 +1,40 @@
+.pipeline { display: flex; align-items: stretch; min-width: 760px; }
+.par { display: flex; flex-direction: column; gap: 6px; }
+
+.no {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  min-width: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-sunken);
+  transition: all var(--dur-slow) var(--ease-out);
+}
+.icone { flex: none; color: var(--text-faint); }
+.textos { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.rotulo { font: 600 12px/1.2 var(--font-sans); color: var(--text-muted); white-space: nowrap; }
+.detalhe { font: 400 11px/1.2 var(--font-mono); color: var(--text-faint); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.parado { opacity: 0.5; }
+.pulado { opacity: 0.4; border-style: dashed; }
+.ativo { background: var(--vv-50); border-color: var(--accent); box-shadow: var(--glow-accent); }
+.feito { border-color: var(--vv-200); }
+.ativo .icone, .feito .icone { color: var(--accent); }
+.ativo .rotulo, .feito .rotulo { color: var(--text-strong); }
+
+.feito.alta { background: var(--alta-bg); border-color: var(--alta-line); }
+.feito.media { background: var(--media-bg); border-color: var(--media-line); }
+.feito.baixa { background: var(--baixa-bg); border-color: var(--baixa-line); }
+.alta .icone, .alta .detalhe { color: var(--alta-fg); }
+.media .icone, .media .detalhe { color: var(--media-fg); }
+.baixa .icone, .baixa .detalhe { color: var(--baixa-fg); }
+
+.fio { flex: 1 1 14px; min-width: 10px; height: 2px; border-radius: 2px; align-self: center; background: var(--border-subtle); }
+.fio_feito { background: var(--vv-200); }
+.fio_ativo {
+  background: repeating-linear-gradient(90deg, var(--vv-400) 0 8px, transparent 8px 16px);
+  background-size: 16px 2px;
+  animation: vv-dash 400ms linear infinite;
+}

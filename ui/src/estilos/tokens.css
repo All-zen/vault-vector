@@ -1,0 +1,122 @@
+/* Tokens do design system. O app e so escuro: paper = superficies, ink = texto. */
+:root {
+  color-scheme: dark;
+
+  /* superficies, do mais fundo ao mais elevado */
+  --paper-2: #0c0e0f;
+  --paper-1: #121415;
+  --paper-0: #1a1d1f;
+  --paper-3: #262b2d;
+  --paper-4: #3a4144;
+
+  /* texto, do mais forte ao mais apagado */
+  --ink-1: #eef1ef;
+  --ink-2: #c3c9c6;
+  --ink-3: #8e9693;
+  --ink-4: #6b7370;
+
+  /* vetor: o teal da marca, calibrado para brilhar sobre grafite */
+  --vv-50: #112d2b;
+  --vv-100: #163d3a;
+  --vv-200: #1f5651;
+  --vv-400: #5fdccd;
+  --vv-500: #2bb3a6;
+  --vv-600: #22958a;
+
+  /* faixas de confianca */
+  --alta-fg: #62d38f;
+  --alta-bg: #11271a;
+  --alta-line: #235836;
+  --media-fg: #f2b84f;
+  --media-bg: #2b220f;
+  --media-line: #6a4f18;
+  --baixa-fg: #f37e66;
+  --baixa-bg: #2f170f;
+  --baixa-line: #6e3020;
+
+  /* terminal */
+  --term-bg: #08090a;
+  --term-fg: #e6ebe9;
+  --term-dim: #7b8482;
+  --term-accent: #5fdccd;
+
+  /* semanticos */
+  --surface-app: var(--paper-1);
+  --surface-card: var(--paper-0);
+  --surface-sunken: var(--paper-2);
+  --surface-hover: #22272a;
+  --surface-inverse: #2a3033;
+  --border-subtle: var(--paper-3);
+  --border-strong: var(--paper-4);
+  --border-focus: var(--vv-500);
+  --text-strong: var(--ink-1);
+  --text-body: var(--ink-2);
+  --text-muted: var(--ink-3);
+  --text-faint: var(--ink-4);
+  --text-on-accent: #041d1a;
+  --text-link: var(--vv-400);
+  --accent: var(--vv-500);
+  --accent-hover: var(--vv-400);
+  --accent-soft: var(--vv-100);
+
+  /* tipografia */
+  --font-sans: "Schibsted Grotesk", ui-sans-serif, system-ui, sans-serif;
+  --font-serif: "Newsreader", Georgia, serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Consolas, monospace;
+  --type-title: 600 22px/1.3 var(--font-sans);
+  --type-heading: 600 16px/1.3 var(--font-sans);
+  --type-body: 400 14px/1.55 var(--font-sans);
+  --type-small: 400 13px/1.55 var(--font-sans);
+  --type-label: 600 11px/1 var(--font-sans);
+  --type-read: 400 18px/1.65 var(--font-serif);
+  --type-mono: 400 13px/1.55 var(--font-mono);
+  --tracking-label: 0.06em;
+
+  /* espaco e forma */
+  --radius-xs: 3px;
+  --radius-sm: 5px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+  --control-h-sm: 28px;
+  --control-h-md: 36px;
+  --control-h-lg: 44px;
+  --sidebar-w: 248px;
+  --reader-w: 720px;
+  --content-max: 1040px;
+
+  /* elevacao */
+  --shadow-1: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-2: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 8px 20px -8px rgba(0, 0, 0, 0.6);
+  --shadow-3: 0 1px 0 rgba(255, 255, 255, 0.05) inset, 0 24px 48px -12px rgba(0, 0, 0, 0.7);
+  --ring-focus: 0 0 0 3px rgba(43, 179, 166, 0.32);
+  --glow-accent: 0 0 0 1px rgba(43, 179, 166, 0.45), 0 0 22px rgba(43, 179, 166, 0.28);
+  --scrim: rgba(4, 6, 6, 0.66);
+
+  /* movimento: toda animacao mostra um processo real acontecendo */
+  --ease-out: cubic-bezier(0.2, 0.7, 0.2, 1);
+  --dur-fast: 120ms;
+  --dur-base: 180ms;
+  --dur-slow: 280ms;
+}
+
+@keyframes vv-rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@keyframes vv-fade { from { opacity: 0; } to { opacity: 1; } }
+@keyframes vv-dash { to { background-position: 16px 0; } }
+@keyframes vv-draw { from { stroke-dashoffset: 260; } to { stroke-dashoffset: 0; } }
+@keyframes vv-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(98, 211, 143, 0.55); }
+  70% { box-shadow: 0 0 0 7px rgba(98, 211, 143, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(98, 211, 143, 0); }
+}
+@keyframes vv-pending { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+@keyframes vv-pop { 0% { transform: scale(0.6); opacity: 0; } 70% { transform: scale(1.08); opacity: 1; } 100% { transform: scale(1); } }
+@keyframes vv-toast { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes vv-spin { to { transform: rotate(360deg); } }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

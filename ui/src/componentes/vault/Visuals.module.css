@@ -1,0 +1,44 @@
+/* mapa do indice */
+.mapa { display: flex; flex-direction: column; gap: 8px; }
+.grade { display: grid; grid-template-columns: repeat(auto-fill, minmax(12px, 1fr)); gap: 3px; }
+.celula {
+  aspect-ratio: 1;
+  border-radius: 2px;
+  background: var(--vv-200);
+  transition: background var(--dur-slow), box-shadow 900ms;
+}
+.pendente { background: var(--media-fg); animation: vv-pending 1.2s ease-in-out infinite; }
+.refeita { background: var(--vv-400); box-shadow: 0 0 8px var(--vv-400); animation: vv-pop 360ms var(--ease-out) both; }
+.escala { align-self: flex-end; font: 400 11px/1 var(--font-mono); color: var(--text-faint); }
+
+/* embedding */
+.vetor { display: grid; gap: 1px; width: max-content; }
+.vetor span { border-radius: 1px; animation: vv-pop 260ms var(--ease-out) both; }
+
+/* previa do recorte */
+.recorte { display: flex; flex-direction: column; gap: 8px; }
+.faixa { display: flex; height: 8px; gap: 2px; border-radius: 3px; overflow: hidden; }
+.faixa span { opacity: 0.85; transition: flex 400ms var(--ease-out); }
+.trecho {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 10px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  animation: vv-rise var(--dur-slow) var(--ease-out) both;
+}
+.trechoTopo { display: flex; align-items: center; gap: 8px; font: 500 11px/1 var(--font-mono); }
+.quadrado { width: 8px; height: 8px; border-radius: 2px; }
+.apagado { color: var(--text-faint); }
+.ocupacao { margin-left: auto; width: 80px; height: 4px; border-radius: 2px; background: var(--paper-3); overflow: hidden; }
+.ocupacao i { display: block; height: 100%; }
+.trilha { font: 600 12px/1.4 var(--font-sans); color: var(--text-strong); }
+.inicio {
+  font: 400 12px/1.4 var(--font-sans);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
