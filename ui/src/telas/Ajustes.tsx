@@ -183,6 +183,12 @@ function CartaoApp() {
         <p>
           Fechar a janela só esconde o vault-vector: ele continua na bandeja, perto do relógio, servindo o Claude. Sair é pelo
           menu do ícone.
+          {sistema.atalho && (
+            <>
+              {" "}
+              De qualquer programa, <kbd>{sistema.atalho}</kbd> traz a janela com o foco na busca.
+            </>
+          )}
         </p>
         {sistema.autostart.suportado ? (
           <Switch

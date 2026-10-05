@@ -169,6 +169,68 @@ class Servidor:
         self._thread.join(timeout=5)
 
 
+# ----------------------------------------------------------- atalho global
+class AtalhoGlobal:
+    """Ctrl+Alt+Espaco traz o app de qualquer lugar, com o foco na busca.
+
+    E o que faz o vault-vector servir no meio do trabalho: a pergunta
+    aparece, o atalho abre a busca, e a resposta vem sem trocar de janela
+    com o mouse.
+
+    RegisterHotKey vale por thread, e quem recebe o WM_HOTKEY e a fila de
+    mensagens da thread que registrou. Por isso o registro e o laco de
+    GetMessage vivem na mesma thread, separada da GUI.
+    """
+
+    MOD_ALT, MOD_CONTROL, MOD_NOREPEAT = 0x0001, 0x0002, 0x4000
+    VK_SPACE, WM_HOTKEY, WM_QUIT = 0x20, 0x0312, 0x0012
+    TEXTO = "Ctrl+Alt+Espaço"
+
+    def __init__(self, acao):
+        self.acao = acao
+        self.ativo = False
+        self._thread_id = None
+        self._pronto = threading.Event()
+
+    def iniciar(self) -> bool:
+        if sys.platform != "win32":
+            return False
+        threading.Thread(target=self._laco, name="atalho-global", daemon=True).start()
+        self._pronto.wait(2)
+        return self.ativo
+
+    def _laco(self) -> None:
+        import ctypes
+        from ctypes import wintypes
+
+        user32 = ctypes.windll.user32
+        kernel32 = ctypes.windll.kernel32
+        self._thread_id = kernel32.GetCurrentThreadId()
+        mods = self.MOD_CONTROL | self.MOD_ALT | self.MOD_NOREPEAT
+        # Falha quando outro programa ja tem o atalho: o app segue sem ele.
+        self.ativo = bool(user32.RegisterHotKey(None, 1, mods, self.VK_SPACE))
+        self._pronto.set()
+        if not self.ativo:
+            print(f"atalho {self.TEXTO} ja esta em uso por outro programa", file=sys.stderr)
+            return
+        msg = wintypes.MSG()
+        while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
+            if msg.message == self.WM_HOTKEY:
+                try:
+                    self.acao()
+                except Exception:
+                    import traceback
+
+                    traceback.print_exc()
+        user32.UnregisterHotKey(None, 1)
+
+    def parar(self) -> None:
+        if self.ativo and self._thread_id:
+            import ctypes
+
+            ctypes.windll.user32.PostThreadMessageW(self._thread_id, self.WM_QUIT, 0, 0)
+
+
 # ------------------------------------------------------------------ ponte
 class Ponte:
     """O que a interface chama via window.pywebview.api.
@@ -201,6 +263,7 @@ class App:
         self.janela = None
         self.icone = None
         self.servidor: Servidor | None = None
+        self.atalho = AtalhoGlobal(self.mostrar)
 
     def mostrar(self) -> None:
         if self.janela is None:
@@ -241,8 +304,11 @@ class App:
             else:
                 autostart.ligar()
 
+        abrir = "Abrir o vault-vector"
+        if self.atalho.ativo:
+            abrir += f"   {AtalhoGlobal.TEXTO}"
         itens = [
-            pystray.MenuItem("Abrir o vault-vector", lambda: self.mostrar(), default=True),
+            pystray.MenuItem(abrir, lambda: self.mostrar(), default=True),
             pystray.Menu.SEPARATOR,
         ]
         if autostart.suportado():
@@ -313,6 +379,8 @@ class App:
         ponte._janela = self.janela
         self.janela.events.closing += self._ao_fechar
 
+        if self.atalho.iniciar():
+            web.ganchos.atalho = AtalhoGlobal.TEXTO
         self.icone = pystray.Icon("vault-vector", desenhar_icone(64), TITULO, self._menu())
         self.icone.run_detached()
 
@@ -327,6 +395,7 @@ class App:
                 storage_path=str(pasta_de_dados() / "webview"),
             )
         finally:
+            self.atalho.parar()
             if self.icone is not None:
                 self.icone.stop()
             if self.servidor is not None:

@@ -633,6 +633,7 @@ class Ganchos:
         self.desktop = False
         self.mostrar_janela: Callable[[], None] | None = None
         self.autostart: Any = None
+        self.atalho: str | None = None
 
 
 ganchos = Ganchos()
@@ -645,6 +646,7 @@ def sistema(d: Dados) -> dict:
         "versao": __version__,
         "desktop": ganchos.desktop,
         "autostart": {"suportado": bool(a and a.suportado()), "ligado": bool(a and a.ligado())},
+        "atalho": ganchos.atalho,
         "config": str(config_path()),
         "python": sys.executable,
     }

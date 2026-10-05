@@ -265,6 +265,8 @@ export interface Sistema {
   versao: string;
   desktop: boolean;
   autostart: { suportado: boolean; ligado: boolean };
+  /** Atalho global que traz o app de qualquer lugar, se conseguiu registrar. */
+  atalho: string | null;
   config: string;
   python: string;
 }
