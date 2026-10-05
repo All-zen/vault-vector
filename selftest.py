@@ -496,6 +496,42 @@ def main() -> int:
         check("paralelismo mede cada nivel pedido",
               [r["paralelo"] for r in niveis] == [1, 2] and niveis[0]["ganho"] == 1.0, str(niveis))
 
+        # --- tarefas em segundo plano ---
+        import threading
+        import time as _time
+
+        from vault_rag.tarefas import Tarefas
+
+        def esperar(tarefa, limite=30):
+            fim = _time.time() + limite
+            while tarefa.estado == "rodando" and _time.time() < fim:
+                _time.sleep(0.02)
+            return tarefa
+
+        tarefas = Tarefas()
+        (cfg.vault / "infra/nova-nota.md").write_text("# Nova\n\nTexto novo.\n", encoding="utf-8")
+        t = esperar(tarefas.iniciar("indexar", lambda tf: index_vault(
+            cfg, verbose=False,
+            progress=lambda rel, rep: tf.andamento(rep.processadas, rep.total, rel)).as_text()))
+        check("tarefa de indexacao termina com andamento completo",
+              t.estado == "ok" and t.total == 1 and t.feito == 1, str(t.como_dict()))
+
+        solta = threading.Event()
+        lenta = tarefas.iniciar("medir", lambda tf: solta.wait(5))
+        check("segundo clique devolve a tarefa que ja roda",
+              tarefas.iniciar("medir", lambda tf: None) is lenta)
+        solta.set()
+        esperar(lenta)
+
+        def quebra(tf):
+            raise RuntimeError("Ollama sumiu")
+        import contextlib
+        import io
+
+        with contextlib.redirect_stderr(io.StringIO()):  # o traceback e esperado
+            falhou = esperar(tarefas.iniciar("x", quebra))
+        check("erro na tarefa chega a quem consulta", falhou.erro == "Ollama sumiu")
+
         # --- gravacao do config ---
         # O config.toml e comentado a mao, e os comentarios explicam de onde
         # veio cada numero. Gravar pela interface nao pode apagar isso.
