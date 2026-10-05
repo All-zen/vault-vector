@@ -86,7 +86,9 @@ describe("tela de nota", () => {
     fireEvent.change(screen.getByLabelText(/conteúdo da nota/i), { target: { value: "outro texto" } });
     fireEvent.click(screen.getByRole("button", { name: /salvar/i }));
     expect(await screen.findByText("A nota mudou no disco")).toBeTruthy();
-    expect(screen.getByRole("button", { name: /gravar a minha por cima/i })).toBeTruthy();
+    // findBy, e nao getBy: o texto entra no DOM um instante antes de o
+    // <dialog> ganhar o atributo open, e ate la o botao e inacessivel.
+    expect(await screen.findByRole("button", { name: /gravar a minha por cima/i })).toBeTruthy();
   });
 
   it("edicao abandonada vira rascunho oferecido na volta", async () => {

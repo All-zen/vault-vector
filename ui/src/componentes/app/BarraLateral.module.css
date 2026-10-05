@@ -9,6 +9,8 @@
   border-right: 1px solid var(--border-subtle);
   overflow-y: auto;
 }
+/* Janela baixa: a barra rola, nada encolhe (o botao ficava espremido). */
+.barra > * { flex-shrink: 0; }
 
 .marca { display: flex; align-items: center; gap: 10px; padding: 0 8px; text-decoration: none; }
 .nome { font: 600 16px/1 var(--font-mono); letter-spacing: -0.02em; color: var(--ink-1); }
