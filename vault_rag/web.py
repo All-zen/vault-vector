@@ -570,7 +570,7 @@ def recorte(d: Dados) -> dict:
 
 # -------------------------------------------------------- primeiro uso
 @rota("GET", "/api/vaults")
-def vaults(d: Dados) -> list[dict]:
+def vaults(d: Dados) -> dict:
     achados = []
     for pasta in api.procurar_vaults():
         notas_md = 0
@@ -579,7 +579,14 @@ def vaults(d: Dados) -> list[dict]:
             if notas_md >= 5000:
                 break  # contar o resto so atrasaria a tela
         achados.append({"caminho": str(pasta), "nome": pasta.name, "notas": notas_md})
-    return achados
+    cfg = contexto.tentar()
+    return {
+        "encontrados": achados,
+        "atual": str(cfg.vault) if cfg else None,
+        # O navegador nao sabe onde fica a pasta do usuario; o vault novo
+        # nasce em ~/Notas, como no 'vault-vector init'.
+        "sugestao_nova": str(Path.home() / "Notas"),
+    }
 
 
 @rota("POST", "/api/vault")

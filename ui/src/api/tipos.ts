@@ -255,6 +255,12 @@ export interface VaultEncontrado {
   notas: number;
 }
 
+export interface Vaults {
+  encontrados: VaultEncontrado[];
+  atual: string | null;
+  sugestao_nova: string;
+}
+
 export interface Sistema {
   versao: string;
   desktop: boolean;

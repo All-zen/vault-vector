@@ -12,6 +12,7 @@ import { Calibrar } from "./telas/Calibrar";
 import { Conectar } from "./telas/Conectar";
 import { Modelos } from "./telas/Modelos";
 import { Nota } from "./telas/Nota";
+import { PrimeiroUso } from "./telas/PrimeiroUso";
 import { Saude } from "./telas/Saude";
 import css from "./App.module.css";
 
@@ -48,6 +49,12 @@ function Shell() {
   const { dados: estado, erro, recarregar } = useDados(() => api.estado(), []);
   const [ocupado, setOcupado] = useState(false);
   const [novaNota, setNovaNota] = useState<{ secao?: string } | null>(null);
+  // Decidido uma vez, na primeira carga: depois de escolher o vault o
+  // estado ja diz "configurado", mas o passo a passo ainda tem dois passos.
+  const [boasVindas, setBoasVindas] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (estado && boasVindas === null) setBoasVindas(!estado.configurado || !estado.ultima_indexacao);
+  }, [estado, boasVindas]);
 
   const abrirNovaNota = useCallback((secao?: string) => setNovaNota({ secao }), []);
 
@@ -89,6 +96,18 @@ function Shell() {
     );
   }
   if (!estado || !contexto) return <Carregando />;
+  // Na primeira carga o efeito acima ainda nao rodou: decidir aqui mesmo,
+  // senao a casca do app pisca e a busca pede notas de um vault que nao ha.
+  if (boasVindas ?? (!estado.configurado || !estado.ultima_indexacao)) {
+    return (
+      <PrimeiroUso
+        aoConcluir={() => {
+          setBoasVindas(false);
+          recarregar();
+        }}
+      />
+    );
+  }
 
   return (
     <AppContexto.Provider value={contexto}>

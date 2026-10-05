@@ -18,7 +18,7 @@ import type {
   Sistema,
   Tarefa,
   ValoresConfig,
-  VaultEncontrado,
+  Vaults,
 } from "./tipos";
 
 export class ErroApi extends Error {
@@ -109,7 +109,7 @@ export const api = {
   recorte: (params: Params) => get<Recorte>("/api/recorte", params),
 
   conectar: () => get<Conexao>("/api/conectar"),
-  vaults: () => get<VaultEncontrado[]>("/api/vaults"),
+  vaults: () => get<Vaults>("/api/vaults"),
   escolherVault: (caminho: string, criar: boolean) =>
     post<{ vault: string; criados: string[]; estado: Estado }>("/api/vault", { caminho, criar }),
 
