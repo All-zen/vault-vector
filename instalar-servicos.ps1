@@ -9,9 +9,11 @@
 #                       ocupados). "2h" cobre o expediente e libera a noite.
 #                       Padrao: 2h
 #   -ReindexAt "07:30"  horario da reindexacao diaria. Padrao: 07:30
-#   -Porta 8765         porta do servico HTTP local (so 127.0.0.1)
-#   -SemServico         nao instala o servico HTTP; fica so no modo stdio
-#   -Desinstalar        remove as tarefas agendadas criadas aqui
+#   -Porta 8765         porta do servidor HTTP local (so 127.0.0.1)
+#   -Headless           em vez do app de desktop, o servidor sem janela numa
+#                       tarefa agendada (o jeito antigo, para quem nao quer GUI)
+#   -SemServico         nao sobe servidor nenhum; fica so no modo stdio
+#   -Desinstalar        remove o que foi instalado aqui
 #
 # Idempotente: rodar de novo so atualiza o que mudou.
 
@@ -19,6 +21,7 @@ param(
     [string]$KeepAlive = "2h",
     [string]$ReindexAt = "07:30",
     [int]$Porta = 8765,
+    [switch]$Headless,
     [switch]$SemServico,
     [switch]$Desinstalar
 )
@@ -32,6 +35,7 @@ $exe    = Join-Path $root ".venv\Scripts\vault-vector.exe"
 $TAREFA_REINDEX = "vault-vector reindex"
 $TAREFA_SERVICO = "vault-vector servico"
 $servicoExe = Join-Path $root ".venv\Scripts\vault-vector-servico.exe"
+$appExe = Join-Path $root ".venv\Scripts\vault-vector-app.exe"
 
 function Passo($t) { Write-Host ""; Write-Host "== $t ==" -ForegroundColor Cyan }
 function Ok($t)    { Write-Host "  ok   $t" -ForegroundColor Green }
@@ -52,6 +56,11 @@ if ($Desinstalar) {
     $lnkSvc = Join-Path ([Environment]::GetFolderPath("Startup")) "vault-vector servico.lnk"
     if (Test-Path $lnkSvc) { Remove-Item $lnkSvc -Force; Ok "atalho de inicializacao removido" }
     Get-Process vault-vector-servico -ErrorAction SilentlyContinue | Stop-Process -Force
+    if (Test-Path $venvPy) {
+        & $venvPy -c "from vault_rag import autostart; autostart.desligar()"
+        Ok "app nao abre mais com o Windows"
+    }
+    Get-Process vault-vector-app -ErrorAction SilentlyContinue | Stop-Process -Force
     Write-Host ""
     Write-Host "As variaveis OLLAMA_* continuam definidas. Para limpar:" -ForegroundColor Gray
     Write-Host '  [Environment]::SetEnvironmentVariable("OLLAMA_KEEP_ALIVE",$null,"User")' -ForegroundColor Gray
@@ -114,13 +123,43 @@ Ok "tarefa '$TAREFA_REINDEX' registrada"
 Write-Host "       StartWhenAvailable: se o PC estiver desligado no horario, roda no proximo boot"
 
 # --------------------------------------------------- 4/4 servico HTTP local
-Passo "4/4  Servico HTTP local (porta $Porta)"
+Passo "4/4  Servidor local (porta $Porta)"
 
 $antigo = Get-ScheduledTask -TaskName $TAREFA_SERVICO -ErrorAction SilentlyContinue
 if ($antigo) { Unregister-ScheduledTask -TaskName $TAREFA_SERVICO -Confirm:$false }
 
 if ($SemServico) {
     Write-Host "  -    pulado (-SemServico). O MCP continua funcionando em stdio."
+} elseif (-not $Headless) {
+    # O app de desktop e o servidor: MCP, API e interface no mesmo processo,
+    # com o icone da bandeja como sinal de vida. Substitui a tarefa agendada
+    # do servidor headless, que disputaria a mesma porta.
+    if (-not (Test-Path $appExe)) {
+        Aviso "vault-vector-app.exe nao existe - rode setup.ps1 de novo"
+    } else {
+        Get-Process vault-vector-servico -ErrorAction SilentlyContinue | Stop-Process -Force
+        $env:VAULT_RAG_PORT = "$Porta"
+        [Environment]::SetEnvironmentVariable("VAULT_RAG_PORT", "$Porta", "User")
+        & $venvPy -c "from vault_rag import autostart; autostart.ligar()"
+        Ok "o app abre com o Windows, escondido na bandeja"
+        if (-not (Get-Process vault-vector-app -ErrorAction SilentlyContinue)) {
+            Start-Process -FilePath $appExe -ArgumentList "--escondido" -WorkingDirectory $root
+        }
+        $subiu = $false
+        for ($i = 1; $i -le 20; $i++) {
+            Start-Sleep -Seconds 1
+            try {
+                $r = Invoke-WebRequest -Uri "http://127.0.0.1:$Porta/saude" -TimeoutSec 3 -UseBasicParsing
+                if ($r.StatusCode -eq 200) { $subiu = $true; break }
+            } catch { }
+        }
+        if ($subiu) {
+            Ok "respondendo em http://127.0.0.1:$Porta (interface e MCP)"
+            Write-Host "       Ctrl+Alt+Espaco abre a janela de qualquer programa."
+        } else {
+            Aviso "o app nao respondeu em 20s. Veja o app.log nesta pasta."
+        }
+    }
 } elseif (-not (Test-Path $servicoExe)) {
     Aviso "vault-vector-servico.exe nao existe - rode setup.ps1 de novo para recria-lo"
 } else {
@@ -204,6 +243,7 @@ if ($saida -eq 0) {
 Write-Host ""
 Write-Host "A qualquer momento:" -ForegroundColor Gray
 Write-Host "  .\.venv\Scripts\vault-vector.exe doctor        diagnostico completo"
+Write-Host "  .\.venv\Scripts\vault-vector-app.exe          abre a janela (ou Ctrl+Alt+Espaco)"
 Write-Host "  Get-ScheduledTask 'vault-vector*'              estado das tarefas"
 Write-Host "  Get-ScheduledTask 'vault-vector*' | Start-ScheduledTask   sobe o servico na hora"
 Write-Host "  .\instalar-servicos.ps1 -Desinstalar        remove as tarefas"

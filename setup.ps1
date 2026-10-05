@@ -86,11 +86,13 @@ if (-not (Test-Path $venvPy)) {
 Write-Step "3/5  Instalando o pacote"
 
 & $venvPy -m pip install --upgrade pip --quiet --disable-pip-version-check
-& $venvPy -m pip install -e . --quiet --disable-pip-version-check
+# [desktop] traz a janela nativa e o icone da bandeja. Sem ele o servidor
+# MCP funciona igual, so que sem o app.
+& $venvPy -m pip install -e ".[desktop]" --quiet --disable-pip-version-check
 if ($LASTEXITCODE -ne 0) {
     Write-Fail "Falhou ao instalar as dependencias."
     Write-Host "Rode sem --quiet para ver o erro completo:"
-    Write-Host "  .\.venv\Scripts\python.exe -m pip install -e ."
+    Write-Host '  .\.venv\Scripts\python.exe -m pip install -e ".[desktop]"'
     exit 1
 }
 Write-Host "  ok"
@@ -102,50 +104,42 @@ if ($LASTEXITCODE -ne 0) {
     exit 1
 }
 
-# --------------------------------------------------------------- 4/5 Ollama
-Write-Step "4/5  Ollama e modelo de embedding"
+# ------------------------------------------------------------ 4/5 interface
+Write-Step "4/5  Compilando a interface"
 
-$ollama = Get-Command ollama -ErrorAction SilentlyContinue
-if ($null -eq $ollama) {
-    Write-Fail "Ollama nao encontrado."
-    Write-Host "Instale em https://ollama.com/download e rode este script de novo."
-    Write-Host "O resto ja esta pronto: nada se perde."
+$npm = Get-Command npm -ErrorAction SilentlyContinue
+if ($null -eq $npm) {
+    Write-Fail "Node.js nao encontrado: a interface e compilada com ele."
+    Write-Host "Instale com:  winget install OpenJS.NodeJS.LTS"
+    Write-Host "e rode este script de novo. O resto ja esta pronto."
+    Write-Host ""
+    Write-Host "Sem interface, o servidor MCP funciona igual:"
+    Write-Host "  .\.venv\Scripts\vault-vector.exe init"
     exit 1
 }
-
-$modelos = (& ollama list 2>$null) -join "`n"
-if ($modelos -notmatch "bge-m3") {
-    Write-Host "  baixando bge-m3 (~1.2 GB, demora alguns minutos)..."
-    & ollama pull bge-m3
-    if ($LASTEXITCODE -ne 0) {
-        Write-Fail "Falhou ao baixar o modelo. O servico do Ollama esta rodando?"
-        exit 1
-    }
-} else {
-    Write-Host "  bge-m3 ja esta baixado"
-}
-
-# ------------------------------------------------------------- 5/5 indexacao
-Write-Step "5/5  Indexando o vault"
-Write-Host "  A primeira vez demora (10 a 20 min para ~500 notas). As proximas"
-Write-Host "  levam segundos, porque so o que mudou e reprocessado."
-Write-Host ""
-
-& $venvPy -m vault_rag.cli index
+& npm --prefix ui ci --no-audit --no-fund --loglevel=error
+if ($LASTEXITCODE -eq 0) { & npm --prefix ui run build --silent }
 if ($LASTEXITCODE -ne 0) {
-    Write-Fail "A indexacao falhou. Veja a mensagem acima."
+    Write-Fail "Falhou ao compilar a interface. Veja o erro acima."
     exit 1
 }
+Write-Host "  ok, em vault_rag\static"
+
+# ---------------------------------------------------------------- 5/5 abrir
+Write-Step "5/5  Abrindo o app"
+
+$appExe = Join-Path $root ".venv\Scripts\vault-vector-app.exe"
+Start-Process -FilePath $appExe -WorkingDirectory $root
+Write-Host "  O app abre num passo a passo: escolher a pasta das notas, conferir"
+Write-Host "  o Ollama e o modelo, e indexar. Nada de editar arquivo de config."
 
 # ---------------------------------------------------------------------- fim
 Write-Host ""
 Write-Host "Pronto." -ForegroundColor Green
 Write-Host ""
-Write-Host "Testar a busca:"
-Write-Host "  .\.venv\Scripts\vault-vector.exe search `"sua pergunta aqui`""
+Write-Host "Para o app abrir com o Windows, escondido na bandeja:"
+Write-Host "  powershell -ExecutionPolicy Bypass -File .\instalar-servicos.ps1"
+Write-Host "(ou o interruptor em Ajustes, dentro do app)"
 Write-Host ""
-Write-Host "Registrar como MCP (Claude Code):"
-Write-Host "  claude mcp add vault-vector -- $venvPy -m vault_rag.server"
-Write-Host ""
-Write-Host "Ou no claude_desktop_config.json:"
-Write-Host ('  "command": "' + $venvPy.Replace("\", "\\") + '", "args": ["-m", "vault_rag.server"]')
+Write-Host "Conectar ao Claude: a tela 'Conectar ao Claude' do app traz o comando"
+Write-Host "pronto, com o endereco e o token desta maquina."
