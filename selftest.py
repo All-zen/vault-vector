@@ -463,6 +463,33 @@ def main() -> int:
         check("modelo sem tag casa com :latest", ollama.mesmo_modelo("bge-m3", "bge-m3:latest"))
         check("tag diferente NAO casa", not ollama.mesmo_modelo("qwen2.5:3b", "qwen2.5:7b"))
 
+        # --- medicoes ---
+        from vault_rag import medicao
+
+        s = medicao.sugerir_limiar([0.38, 0.41, 0.52], [0.45, 0.58, 0.61, 0.66])
+        check("limiar: populacoes que se sobrepoem pedem escolha",
+              s["sobrepoe"] and s["conservador"] == 0.525 and s["perdidas_no_conservador"] == 1,
+              str(s))
+        s = medicao.sugerir_limiar([0.30, 0.35], [0.50, 0.60])
+        check("limiar: sem sobreposicao, o meio do vao",
+              not s["sobrepoe"] and s["sugerido"] == 0.425, str(s))
+        check("limiar: amostra vazia nao inventa numero", medicao.sugerir_limiar([], [0.5]) is None)
+
+        arq = tmp / "perguntas.txt"
+        arq.write_text("# comentario\nREESCREVA ESTA COMO PERGUNTA | x\n"
+                       "como copio os arquivos | backup-nas\n\n", encoding="utf-8")
+        check("perguntas: pula comentario e linha nao reescrita",
+              medicao.ler_perguntas(arq) == [("como copio os arquivos", "backup-nas")])
+
+        medida = medicao.medir_calibracao(cfg, amostra=4)
+        check("calibracao sem perguntas mede titulos",
+              medida["fonte"] == "titulos" and len(medida["fora"]) == len(medicao.FORA_DO_VAULT)
+              and 0 < len(medida["dentro"]) <= 4, str({k: medida[k] for k in ("fonte",)}))
+        textos, total = medicao.amostra_de_trechos(cfg, 6)
+        niveis = medicao.medir_paralelismo(cfg, textos, [1, 2])
+        check("paralelismo mede cada nivel pedido",
+              [r["paralelo"] for r in niveis] == [1, 2] and niveis[0]["ganho"] == 1.0, str(niveis))
+
         # --- config viva ---
         # O app de desktop abre ANTES de existir vault, justamente para a
         # pessoa escolher um. Sem vault, o processo tem que ficar de pe e as
