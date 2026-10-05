@@ -582,6 +582,82 @@ def main() -> int:
                 else:
                     os.environ[k] = v
             contexto.recarregar()
+
+        # --- API da interface ---
+        import logging
+        import warnings
+
+        warnings.filterwarnings("ignore", message=".*httpx.*")
+        logging.getLogger("httpx").setLevel(logging.WARNING)  # uma linha por requisicao
+        from starlette.testclient import TestClient
+
+        from vault_rag.server import criar_app
+
+        config_web = tmp / "config-web.toml"
+        config_web.write_text(
+            f'vault = "{cfg.vault.as_posix()}"\ndb_path = "{cfg.db_path.as_posix()}"\n'
+            f'model = "stub"\nollama_url = "http://127.0.0.1:9"\n',
+            encoding="utf-8",
+        )
+        guardado = os.environ.get("VAULT_RAG_CONFIG")
+        os.environ["VAULT_RAG_CONFIG"] = str(config_web)
+        contexto.recarregar()
+        try:
+            app = criar_app(token="t0ken")
+            web = TestClient(app, base_url="http://127.0.0.1:8765")
+            H = {"Authorization": "Bearer t0ken"}
+
+            # As tres travas: cada uma fecha um caminho diferente.
+            check("web: Host de outro dominio e negado (DNS rebinding)",
+                  TestClient(app, base_url="http://evil.example:8765")
+                  .get("/api/estado", headers=H).status_code == 403)
+            check("web: sem token e negado", web.get("/api/estado").status_code == 401)
+            check("web: escrita vinda de outra origem e negada",
+                  web.post("/api/indexar", headers={**H, "Origin": "http://evil.example"})
+                  .status_code == 403)
+            check("web: /saude responde sem token e se identifica",
+                  web.get("/saude").json().get("app") == "vault-vector")
+
+            e = web.get("/api/estado", headers=H).json()
+            check("web: estado conta as notas", e["configurado"] and e["notas"] >= 7, str(e)[:120])
+
+            b = web.get("/api/buscar", params={"q": "access points"}, headers=H).json()
+            check("web: busca devolve hits com o boost decomposto",
+                  b["hits"] and all("fatores" in h for h in b["hits"]), str(b)[:120])
+
+            n = web.get("/api/nota", params={"caminho": "infra/backup-nas"}, headers=H).json()
+            check("web: nota vem com trechos e quem cita",
+                  n["path"] == "infra/backup-nas.md" and n["trechos"]
+                  and "infra/00-MOC.md" in n["citada_por"], str(n)[:160])
+
+            velho = web.post("/api/nota", headers=H, json={
+                "caminho": n["path"], "conteudo": n["conteudo"] + "\nnovo\n", "mtime": n["mtime"] - 60})
+            check("web: mtime velho vira 409 de conflito",
+                  velho.status_code == 409 and velho.json()["codigo"] == "conflito")
+            ok = web.post("/api/nota", headers=H, json={
+                "caminho": n["path"], "conteudo": n["conteudo"] + "\nlinha nova\n", "mtime": n["mtime"]})
+            versoes = ok.json()["nota"]["versoes"]
+            check("web: gravar guarda a versao anterior", ok.status_code == 200 and versoes,
+                  ok.text[:160])
+            volta = web.post("/api/nota/restaurar", headers=H, json={
+                "caminho": n["path"], "versao": versoes[0]["versao"],
+                "mtime": ok.json()["nota"]["mtime"]})
+            check("web: restaurar traz o texto de volta",
+                  volta.status_code == 200 and volta.json()["nota"]["conteudo"] == n["conteudo"],
+                  volta.text[:160])
+
+            check("web: config recusa chave que nao se ajusta",
+                  web.post("/api/config", headers=H, json={"valores": {"vault": "x"}})
+                  .status_code == 400)
+            r = web.post("/api/config", headers=H, json={"valores": {"rrf_k": 42}}).json()
+            check("web: config gravada vale na hora",
+                  r["valores"]["rrf_k"] == 42 and contexto.config().rrf_k == 42)
+        finally:
+            if guardado is None:
+                os.environ.pop("VAULT_RAG_CONFIG", None)
+            else:
+                os.environ["VAULT_RAG_CONFIG"] = guardado
+            contexto.recarregar()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
