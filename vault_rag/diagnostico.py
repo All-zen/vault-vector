@@ -11,7 +11,7 @@ import os
 from dataclasses import asdict, dataclass, field
 
 from . import ollama
-from .config import Config
+from .config import Config, config_path
 
 
 @dataclass
@@ -41,7 +41,8 @@ def diagnosticar(cfg: Config, *, testar_busca: bool = True) -> list[Grupo]:
     grupos: list[Grupo] = []
 
     g = Grupo("config", "Configuração")
-    g.add(True, "Config lida", str(cfg.vault))
+    arquivo = config_path()
+    g.add(True, "Config lida", str(arquivo) if arquivo.is_file() else "sem config.toml: valores padrão")
     g.add(cfg.vault.is_dir(), "Vault existe", str(cfg.vault), "confira o caminho em config.toml")
     grupos.append(g)
 
