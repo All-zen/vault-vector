@@ -16,10 +16,8 @@ try:  # mcp >= 2
 except ImportError:  # mcp 1.x
     from mcp.server.fastmcp import FastMCP as _Servidor
 
-from . import api
-from .config import load_config
+from . import api, contexto
 
-cfg = load_config()
 
 def _instrucoes() -> str:
     """Descricao do vault para o modelo.
@@ -29,6 +27,13 @@ def _instrucoes() -> str:
     - assim o projeto serve a qualquer vault sem carregar o conteudo de quem o
     escreveu.
     """
+    cfg = contexto.tentar()
+    if cfg is None:
+        return (
+            "Busca e escrita num vault de notas markdown, que ainda nao foi "
+            "configurado. Peca para a pessoa abrir o vault-vector e escolher "
+            "a pasta das notas."
+        )
     if getattr(cfg, "instructions", ""):
         return cfg.instructions
     try:
@@ -78,6 +83,7 @@ def vault_search(
         expand: devolve a secao inteira em volta do trecho que casou, em vez
             do trecho isolado. Desligue para respostas mais curtas.
     """
+    cfg = contexto.config()
     top_k = max(1, min(int(top_k), 20))
     hits = api.search(
         cfg,
@@ -99,6 +105,7 @@ def vault_read(path: str, heading: str = "") -> str:
             tambem o alvo de um wikilink, sem a extensao.
         heading: opcional, titulo exato de uma secao para recortar so ela.
     """
+    cfg = contexto.config()
     result = api.read_note(cfg, path, heading or None)
     if "error" in result:
         return result["error"]
@@ -111,6 +118,7 @@ def vault_read(path: str, heading: str = "") -> str:
 @mcp.tool()
 def vault_list_sections() -> str:
     """Lista as secoes (pastas raiz) do vault com quantas notas cada uma tem."""
+    cfg = contexto.config()
     rows = api.list_sections(cfg)
     if not rows:
         return "Indice vazio. Rode 'vault-rag index'."
@@ -139,6 +147,7 @@ def vault_edit(path: str, old_str: str, new_str: str, replace_all: bool = False)
     """
     from .writer import WriteError, edit_note
 
+    cfg = contexto.config()
     try:
         r = edit_note(cfg, path, old_str, new_str, replace_all=replace_all)
     except WriteError as exc:
@@ -167,6 +176,7 @@ def vault_append(path: str, content: str) -> str:
     """
     from .writer import WriteError, append_note
 
+    cfg = contexto.config()
     try:
         r = append_note(cfg, path, content)
     except WriteError as exc:
@@ -192,6 +202,7 @@ def vault_write(path: str, content: str, overwrite: bool = False) -> str:
     """
     from .writer import WriteError, write_note
 
+    cfg = contexto.config()
     try:
         r = write_note(cfg, path, content, overwrite=overwrite)
     except WriteError as exc:
@@ -214,6 +225,7 @@ def vault_list(pasta: str = "") -> str:
     """
     from .writer import WriteError, list_dir
 
+    cfg = contexto.config()
     try:
         r = list_dir(cfg, pasta)
     except (WriteError, ValueError) as exc:
@@ -243,6 +255,7 @@ def vault_move(origem: str, destino: str, atualizar_links: bool = True) -> str:
     """
     from .writer import WriteError, move_note
 
+    cfg = contexto.config()
     try:
         r = move_note(cfg, origem, destino, atualizar_links=atualizar_links)
     except (WriteError, ValueError) as exc:
@@ -269,6 +282,7 @@ def vault_delete(path: str) -> str:
     """
     from .writer import WriteError, delete_note
 
+    cfg = contexto.config()
     try:
         r = delete_note(cfg, path)
     except (WriteError, ValueError) as exc:
@@ -296,6 +310,7 @@ def vault_reindex(force: bool = False) -> str:
     """
     from .indexer import index_vault, stale_files
 
+    cfg = contexto.config()
     if not force:
         pending = stale_files(cfg)
         if len(pending) > 150:
@@ -312,6 +327,7 @@ def vault_reindex(force: bool = False) -> str:
 @mcp.tool()
 def vault_index_status() -> str:
     """Estado do indice: quantas notas, quantos chunks e o que mudou desde a ultima indexacao."""
+    cfg = contexto.config()
     info = api.index_status(cfg)
     return json.dumps(info, ensure_ascii=False, indent=2)
 

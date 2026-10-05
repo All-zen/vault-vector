@@ -442,6 +442,36 @@ def main() -> int:
         finally:
             api.OllamaJudge = original_juiz
             cfg.rerank_model = ""
+
+        # --- config viva ---
+        # O app de desktop abre ANTES de existir vault, justamente para a
+        # pessoa escolher um. Sem vault, o processo tem que ficar de pe e as
+        # ferramentas recusarem com mensagem, em vez de SystemExit no import.
+        import os
+
+        from vault_rag import contexto
+
+        guardado = {k: os.environ.get(k) for k in ("VAULT_RAG_CONFIG", "VAULT_RAG_VAULT")}
+        try:
+            os.environ["VAULT_RAG_CONFIG"] = str(tmp / "nao-existe.toml")
+            os.environ.pop("VAULT_RAG_VAULT", None)
+            check("sem vault, o contexto devolve None em vez de sair",
+                  contexto.recarregar() is None and "Vault" in contexto.motivo())
+            try:
+                contexto.config()
+                check("sem vault, pedir a config e erro comum", False, "nao recusou")
+            except contexto.NaoConfigurado:
+                check("sem vault, pedir a config e erro comum", True)
+            os.environ["VAULT_RAG_VAULT"] = str(cfg.vault)
+            check("com vault, recarregar pega a config nova",
+                  contexto.recarregar() is not None and contexto.config().vault == cfg.vault)
+        finally:
+            for k, v in guardado.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
+            contexto.recarregar()
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

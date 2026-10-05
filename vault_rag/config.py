@@ -89,7 +89,16 @@ class Config:
         return Path(__file__).resolve().parent
 
 
-def _config_path() -> Path:
+class VaultNaoConfigurado(SystemExit):
+    """Falta o vault, ou ele nao existe no disco.
+
+    Herda de SystemExit para o CLI continuar saindo com a mensagem, como
+    sempre fez. Quem fica no ar - o app de desktop, o servidor - captura esta
+    classe especifica e mostra a tela de primeiro uso em vez de morrer.
+    """
+
+
+def config_path() -> Path:
     env = os.environ.get("VAULT_RAG_CONFIG")
     if env:
         return Path(env).expanduser()
@@ -97,7 +106,7 @@ def _config_path() -> Path:
 
 
 def load_config(overrides: dict | None = None) -> Config:
-    path = _config_path()
+    path = config_path()
     raw: dict = {}
     if path.is_file():
         with path.open("rb") as fh:
@@ -105,7 +114,7 @@ def load_config(overrides: dict | None = None) -> Config:
 
     vault = raw.get("vault") or os.environ.get("VAULT_RAG_VAULT")
     if not vault:
-        raise SystemExit(
+        raise VaultNaoConfigurado(
             f"Vault nao configurado. Crie {path} com a linha:\n"
             '  vault = "C:/Memorias"\n'
             "ou defina a variavel de ambiente VAULT_RAG_VAULT."
@@ -161,6 +170,6 @@ def load_config(overrides: dict | None = None) -> Config:
             setattr(cfg, key, value)
 
     if not cfg.vault.is_dir():
-        raise SystemExit(f"Vault nao encontrado: {cfg.vault}")
+        raise VaultNaoConfigurado(f"Vault nao encontrado: {cfg.vault}")
 
     return cfg
