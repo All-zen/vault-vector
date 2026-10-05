@@ -9,6 +9,7 @@ import { navegar, useRota, type Rota } from "./lib/rota";
 import { Busca } from "./telas/Busca";
 import { Nota } from "./telas/Nota";
 import { Saude } from "./telas/Saude";
+import { Modelos } from "./telas/Modelos";
 import css from "./App.module.css";
 
 function Telas({ rota }: { rota: Rota }) {
@@ -19,6 +20,8 @@ function Telas({ rota }: { rota: Rota }) {
       return <Nota params={rota.params} />;
     case "saude":
       return <Saude />;
+    case "modelos":
+      return <Modelos />;
     default:
       return (
         <div className={css.vazio}>
