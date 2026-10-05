@@ -613,8 +613,6 @@ def main() -> int:
         logging.getLogger("httpx").setLevel(logging.WARNING)  # uma linha por requisicao
         from starlette.testclient import TestClient
 
-        from vault_rag.server import criar_app
-
         config_web = tmp / "config-web.toml"
         config_web.write_text(
             f'vault = "{cfg.vault.as_posix()}"\ndb_path = "{cfg.db_path.as_posix()}"\n'
@@ -625,6 +623,12 @@ def main() -> int:
         os.environ["VAULT_RAG_CONFIG"] = str(config_web)
         contexto.recarregar()
         try:
+            # Import so depois de apontar o config para a pasta temporaria: o
+            # server.py descreve o vault ao ser importado, e isso abre o
+            # indice - com o config padrao, criava um index.db na raiz do
+            # projeto a cada rodada da suite.
+            from vault_rag.server import criar_app
+
             app = criar_app(token="t0ken")
             web = TestClient(app, base_url="http://127.0.0.1:8765")
             H = {"Authorization": "Bearer t0ken"}
