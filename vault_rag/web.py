@@ -680,11 +680,10 @@ class Guarda:
     ABERTAS = ("/saude",)
     ESTATICAS = ("/", "/index.html", "/favicon.svg")
 
-    def __init__(self, app, *, token: str, hosts: set[str]):
+    def __init__(self, app, *, token: str, hosts: set[str] | None):
         self.app = app
         self.token = token
-        self.hosts = hosts
-        self.origens = {f"http://{h}" for h in hosts}
+        self.hosts = hosts  # None = nao checa Host (servidor fora de loopback)
 
     async def __call__(self, scope, receive, send):
         if scope["type"] != "http":
@@ -693,14 +692,17 @@ class Guarda:
         cab = {k.decode("latin-1").lower(): v.decode("latin-1") for k, v in scope["headers"]}
         caminho = scope["path"]
 
-        if cab.get("host", "") not in self.hosts:
+        host = cab.get("host", "")
+        if self.hosts is not None and host not in self.hosts:
             return await self._negar(scope, receive, send, 403, "host nao permitido")
 
         if caminho in self.ABERTAS:
             return await self.app(scope, receive, send)
 
         origem = cab.get("origin")
-        if scope["method"] not in ("GET", "HEAD", "OPTIONS") and origem and origem not in self.origens:
+        # Mesma origem: a pagina do app manda Origin igual ao Host que ela
+        # mesma acessou. Vale em loopback e fora dele.
+        if scope["method"] not in ("GET", "HEAD", "OPTIONS") and origem and origem != f"http://{host}":
             return await self._negar(scope, receive, send, 403, "origem nao permitida")
 
         estatica = caminho in self.ESTATICAS or caminho.startswith("/assets/")
@@ -759,5 +761,9 @@ def montar(app, *, token: str, host: str = "127.0.0.1", porta: int = 8765,
     ]
     app.routes.extend(rotas)
 
-    hosts = {f"127.0.0.1:{porta}", f"localhost:{porta}", f"{host}:{porta}"}
+    # A trava de Host existe contra DNS rebinding, que so ameaca quem
+    # escuta em loopback. Com --host 0.0.0.0 (exposto na rede de proposito),
+    # o cliente chega pelo IP da maquina e a protecao fica so com o token.
+    loopback = host in ("127.0.0.1", "localhost", "::1")
+    hosts = {f"127.0.0.1:{porta}", f"localhost:{porta}", f"{host}:{porta}"} if loopback else None
     app.add_middleware(Guarda, token=token, hosts=hosts)

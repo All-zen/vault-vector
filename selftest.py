@@ -643,6 +643,19 @@ def main() -> int:
                   .status_code == 403)
             check("web: /saude responde sem token e se identifica",
                   web.get("/saude").json().get("app") == "vault-vector")
+            check("web: escrita da propria origem passa pela trava",
+                  web.post("/api/config", json={"valores": {"vault": "x"}},
+                           headers={**H, "Origin": "http://127.0.0.1:8765"}).status_code == 400)
+
+            # Exposto na rede de proposito (--host 0.0.0.0): o cliente chega
+            # pelo nome ou IP da maquina, e quem segura e o token.
+            na_rede = TestClient(criar_app(host="0.0.0.0", token="t0ken"),
+                                 base_url="http://notebook.lan:8765")
+            check("web: fora de loopback, Host da rede passa com token",
+                  na_rede.get("/api/estado", headers=H).status_code == 200)
+            check("web: fora de loopback, sem token continua negado",
+                  na_rede.get("/api/estado").status_code == 401)
+            criar_app(token="t0ken")  # volta os ganchos para o app de loopback
 
             e = web.get("/api/estado", headers=H).json()
             check("web: estado conta as notas", e["configurado"] and e["notas"] >= 7, str(e)[:120])
