@@ -1,0 +1,56 @@
+/* bloco de comando */
+.terminal {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--term-bg);
+  color: var(--term-fg);
+  border-radius: var(--radius-md);
+  font: 400 13px/1.6 var(--font-mono);
+}
+.prompt { color: var(--term-accent); user-select: none; }
+.comando { flex: 1; min-width: 0; overflow-x: auto; white-space: pre; }
+.comentario { color: var(--term-dim); }
+.copiar {
+  display: inline-flex;
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: var(--term-dim);
+  cursor: pointer;
+}
+.copiar:hover, .copiado { color: var(--term-accent); }
+
+/* lista de metadados */
+.meta { display: grid; gap: 10px 18px; margin: 0; }
+.metaItem {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  animation: vv-rise var(--dur-slow) var(--ease-out) both;
+}
+.metaItem dt { font: 500 11px/1.2 var(--font-mono); color: var(--text-faint); }
+.metaItem dd { margin: 0; font: 500 12px/1.35 var(--font-mono); color: var(--text-strong); overflow-wrap: anywhere; }
+.metaItem dd.sans { font: 500 13px/1.35 var(--font-sans); }
+
+/* linha de diagnostico */
+.status {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  gap: 12px;
+  align-items: start;
+  padding: 12px 0;
+  border-top: 1px solid var(--border-subtle);
+  animation: vv-rise var(--dur-slow) var(--ease-out) both;
+}
+.statusIcone { margin-top: 1px; }
+.statusTextos { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.statusRotulo { font: 500 14px/1.4 var(--font-sans); color: var(--text-strong); }
+.statusDetalhe { font: 400 12px/1.4 var(--font-mono); color: var(--text-muted); overflow-wrap: anywhere; }
+.statusDica { display: flex; gap: 6px; font: 400 13px/1.45 var(--font-sans); }
+.statusTag { font: 600 11px/20px var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; }
+.ok .statusIcone, .ok .statusTag, .ok .statusDica { color: var(--alta-fg); }
+.aviso .statusIcone, .aviso .statusTag, .aviso .statusDica { color: var(--media-fg); }
+.falta .statusIcone, .falta .statusTag, .falta .statusDica { color: var(--baixa-fg); }
