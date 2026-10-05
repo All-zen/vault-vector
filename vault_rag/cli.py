@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import time
+import unicodedata
 from pathlib import Path
 
 from . import api
@@ -66,100 +67,42 @@ def cmd_stats(args) -> int:
     return 0
 
 
+def _terminal(texto: str) -> str:
+    """Tira acento e travessao do que vai para o terminal.
+
+    O texto dos diagnosticos esta em portugues correto porque a interface
+    mostra igual. No terminal, saida redirecionada sai em cp1252 e o
+    PowerShell le em outra codificacao: "memória" vira "mem�ria".
+    """
+    texto = texto.replace("—", "-").replace("–", "-")
+    return unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
+
+
 def cmd_doctor(args) -> int:
     """Checa tudo que a busca precisa e diz o que fazer quando algo falta."""
-    import json as _json
-    import urllib.request
+    from .diagnostico import diagnosticar, problemas
 
-    problemas: list[str] = []
-
-    def linha(ok, texto, dica=""):
-        print(f"  {'ok  ' if ok else 'FALTA'}  {texto}")
-        if not ok and dica:
-            print(f"          -> {dica}")
-            problemas.append(texto)
-
-    print("== configuracao ==")
     try:
         cfg = load_config()
-        linha(True, f"config lida (vault: {cfg.vault})")
     except SystemExit as exc:
-        linha(False, "config", str(exc))
+        print("== configuracao ==")
+        print(f"  FALTA  config\n          -> {exc}")
         return 1
-    linha(cfg.vault.is_dir(), f"vault existe: {cfg.vault}",
-          "confira o caminho em config.toml")
 
-    print("\n== Ollama ==")
-    tags = None
-    try:
-        with urllib.request.urlopen(f"{cfg.ollama_url}/api/tags", timeout=8) as r:
-            tags = _json.loads(r.read().decode())
-        linha(True, f"servico respondendo em {cfg.ollama_url}")
-    except Exception:
-        linha(False, f"servico em {cfg.ollama_url}",
-              "abra o app do Ollama, ou rode 'ollama serve'")
-
-    if tags is not None:
-        nomes = [m.get("name", "") for m in tags.get("models", [])]
-        tem = cfg.model in nomes or cfg.model.split(":")[0] in {n.split(":")[0] for n in nomes}
-        linha(tem, f"modelo '{cfg.model}' baixado", f"rode: ollama pull {cfg.model}")
-        try:
-            with urllib.request.urlopen(f"{cfg.ollama_url}/api/ps", timeout=8) as r:
-                carregados = _json.loads(r.read().decode()).get("models", [])
-            quente = any(cfg.model.split(":")[0] in m.get("name", "") for m in carregados)
-            print(f"  {'ok  ' if quente else 'aviso'}  modelo "
-                  + ("carregado na memoria (primeira busca instantanea)" if quente
-                     else "descarregado — a primeira busca paga ~30-60s de recarga"))
-            if not quente:
-                print("          -> OLLAMA_KEEP_ALIVE evita isso; veja instalar-servicos.ps1")
-        except Exception:
-            pass
-
-    print("\n== indice ==")
-    try:
-        info = api.index_status(cfg)
-    except Exception as exc:
-        linha(False, "indice legivel", str(exc))
-        return 1
-    existe = (info.get("files") or 0) > 0
-    linha(existe, f"{info.get('files', 0)} nota(s), {info.get('chunks', 0)} trecho(s), "
-                  f"{info.get('db_mb', 0)} MB", "rode: vault-rag index")
-    pend = info.get("pending", 0)
-    print(f"  {'ok  ' if pend == 0 else 'aviso'}  {pend} nota(s) pendente(s)"
-          + ("" if pend == 0 else " — rode 'vault-rag index' ou espere a tarefa agendada"))
-    modelo_indice = info.get("model")
-    if modelo_indice and modelo_indice != cfg.model:
-        linha(False, f"indice foi feito com '{modelo_indice}', config pede '{cfg.model}'",
-              "rode: vault-rag index --force")
-    print(f"  ultima indexacao: {info.get('last_index') or 'nunca'}")
-
-    print("\n== busca ==")
-    try:
-        hits = api.search(cfg, "rede servidor backup", top_k=2)
-        linha(bool(hits), f"consulta de teste devolveu {len(hits)} resultado(s)",
-              "o indice pode estar vazio")
-        if hits:
-            modos = []
-            if any(h.vec_rank is not None for h in hits):
-                modos.append("semantico")
-            if any(h.fts_rank is not None for h in hits):
-                modos.append("literal")
-            print(f"  ok    lados ativos: {' + '.join(modos)}")
-            if "semantico" not in modos:
-                print("          -> so literal: o Ollama nao respondeu, a busca caiu para o modo degradado")
-    except Exception as exc:
-        linha(False, "busca", str(exc))
-
-    print("\n== escrita ==")
-    hist = cfg.vault / "_historico"
-    print(f"  ok    historico em {hist}"
-          + (f" ({len(list(hist.rglob('*.md')))} copias)" if hist.is_dir() else " (ainda vazio)"))
-    gravavel = os.access(cfg.vault, os.W_OK)
-    linha(gravavel, "vault gravavel", "confira permissoes da pasta")
+    grupos = diagnosticar(cfg)
+    marca = {"ok": "ok   ", "aviso": "aviso", "falta": "FALTA"}
+    for i, grupo in enumerate(grupos):
+        print(("\n" if i else "") + _terminal(f"== {grupo.nome} =="))
+        for item in grupo.itens:
+            detalhe = f"  ({item.detalhe})" if item.detalhe else ""
+            print(_terminal(f"  {marca[item.status]}  {item.rotulo}{detalhe}"))
+            if item.dica:
+                print(_terminal(f"          -> {item.dica}"))
 
     print()
-    if problemas:
-        print(f"{len(problemas)} item(ns) precisam de atencao (veja as setas acima).")
+    faltas = problemas(grupos)
+    if faltas:
+        print(f"{len(faltas)} item(ns) precisam de atencao (veja as setas acima).")
         return 1
     print("Tudo pronto.")
     return 0

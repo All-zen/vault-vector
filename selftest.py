@@ -443,6 +443,26 @@ def main() -> int:
             api.OllamaJudge = original_juiz
             cfg.rerank_model = ""
 
+        # --- diagnostico ---
+        # CLI e tela de saude leem a mesma lista. Ollama fora do ar e o caso
+        # que mais acontece na pratica, e tem que aparecer como falta, sem
+        # derrubar o resto da checagem.
+        from vault_rag import ollama
+        from vault_rag.diagnostico import diagnosticar, problemas
+
+        sem_ollama = Config(vault=cfg.vault, db_path=cfg.db_path, model="stub",
+                            ollama_url="http://127.0.0.1:9")
+        grupos = {g.id: g for g in diagnosticar(sem_ollama, testar_busca=False)}
+        check("diagnostico: Ollama fora do ar e falta",
+              grupos["ollama"].itens[0].status == "falta" and grupos["ollama"].itens[0].dica)
+        check("diagnostico: o resto continua sendo checado",
+              {"config", "indice", "escrita"} <= set(grupos))
+        check("diagnostico: so o Ollama conta como problema",
+              len(problemas(list(grupos.values()))) == 1,
+              str([i.rotulo for i in problemas(list(grupos.values()))]))
+        check("modelo sem tag casa com :latest", ollama.mesmo_modelo("bge-m3", "bge-m3:latest"))
+        check("tag diferente NAO casa", not ollama.mesmo_modelo("qwen2.5:3b", "qwen2.5:7b"))
+
         # --- config viva ---
         # O app de desktop abre ANTES de existir vault, justamente para a
         # pessoa escolher um. Sem vault, o processo tem que ficar de pe e as
