@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { bytes, dataDoNome, idade, numero } from "./formato";
-import { previa, semFrontmatter, wikilinksParaLinks } from "./markdown";
+import { previa, secaoDaLinha, secoes, semFrontmatter, wikilinksParaLinks } from "./markdown";
 import { hrefNota, lerRota } from "./rota";
 
 describe("wikilinks", () => {
@@ -18,6 +18,23 @@ describe("wikilinks", () => {
 
   it("embed de anexo vira so o nome, porque o app nao serve anexo", () => {
     expect(wikilinksParaLinks("![[diagrama.png]]")).toBe("`diagrama.png`");
+  });
+});
+
+describe("secoes da nota", () => {
+  const nota = "# Backup\n\nIntro.\n\n## Como\n\n```\n# nao e titulo\n```\n\n## Teste\n\nTexto.";
+
+  it("corta nos titulos e guarda a linha de cada secao", () => {
+    expect(secoes(nota).map((s) => s.linha)).toEqual([1, 5, 11]);
+  });
+
+  it("titulo dentro de bloco de codigo nao abre secao", () => {
+    expect(secoes(nota)[1]?.texto).toContain("# nao e titulo");
+  });
+
+  it("acha a secao de uma linha do indice", () => {
+    expect(secaoDaLinha(secoes(nota), 7)).toBe(1);
+    expect(secaoDaLinha(secoes(nota), 1)).toBe(0);
   });
 });
 

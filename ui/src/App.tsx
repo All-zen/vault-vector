@@ -7,12 +7,15 @@ import { AppContexto, type ContextoApp } from "./lib/app";
 import { useDados } from "./lib/dados";
 import { navegar, useRota, type Rota } from "./lib/rota";
 import { Busca } from "./telas/Busca";
+import { Nota } from "./telas/Nota";
 import css from "./App.module.css";
 
 function Telas({ rota }: { rota: Rota }) {
   switch (rota.tela) {
     case "buscar":
       return <Busca params={rota.params} />;
+    case "nota":
+      return <Nota params={rota.params} />;
     default:
       return (
         <div className={css.vazio}>
