@@ -171,6 +171,42 @@ function ArquivoConfig({ config, valores }: { config: Config; valores: ValoresCo
   );
 }
 
+/** O que so existe no app de desktop: abrir com o Windows. */
+function CartaoApp() {
+  const toast = useToast();
+  const { dados: sistema, recarregar } = useDados(() => api.sistema(), []);
+  if (!sistema?.desktop) return null;
+  return (
+    <Card>
+      <section className={css.secao}>
+        <h2>App</h2>
+        <p>
+          Fechar a janela só esconde o vault-vector: ele continua na bandeja, perto do relógio, servindo o Claude. Sair é pelo
+          menu do ícone.
+        </p>
+        {sistema.autostart.suportado ? (
+          <Switch
+            checked={sistema.autostart.ligado}
+            onChange={async (ligado) => {
+              try {
+                await api.autostart(ligado);
+                toast(ligado ? "Abre com o Windows, escondido na bandeja." : "Não abre mais com o Windows.");
+              } catch (e) {
+                toast(e instanceof Error ? e.message : String(e), "erro");
+              }
+              recarregar();
+            }}
+            label="Abrir com o Windows"
+            description="Sobe escondido no logon, só com o ícone da bandeja. Fica em Gerenciador de Tarefas › Inicializar."
+          />
+        ) : (
+          <p>Abrir com o sistema só existe no Windows, por enquanto.</p>
+        )}
+      </section>
+    </Card>
+  );
+}
+
 export function Ajustes() {
   const { recarregarEstado, setOcupado } = useApp();
   const toast = useToast();
@@ -230,12 +266,14 @@ export function Ajustes() {
     <div className={css.tela}>
       <div className={css.principal}>
         <div className="tela-titulo">
-          <h1>Ajustes de qualidade</h1>
+          <h1>Ajustes</h1>
           <p>
             Cada variável do <code>config.toml</code>, com o que ela muda na resposta. Os padrões foram medidos num vault real de
             ~500 notas; os limiares de confiança ficam na tela <a href={hrefDe("calibrar")}>Calibrar</a>.
           </p>
         </div>
+
+        <CartaoApp />
 
         <Card>
           <section className={css.secao}>
