@@ -381,6 +381,13 @@ def criar_app(host: str = "127.0.0.1", port: int = 8765, token: str = ""):
     app.routes.append(Route(
         "/saude", lambda r: JSONResponse({"ok": True, "app": "vault-vector", "versao": __version__})
     ))
+    # As configs ja escritas (pelo 'vault-vector token' e pelas versoes
+    # anteriores) apontam para /mcp/, e o SDK atual responde em /mcp,
+    # redirecionando a barra com 307. Cliente que nao repete o POST no
+    # redirect perderia a conexao: responde nos dois caminhos.
+    rota_mcp = next((r for r in app.routes if getattr(r, "path", "") == "/mcp"), None)
+    if rota_mcp is not None:
+        app.routes.append(Route("/mcp/", endpoint=rota_mcp.endpoint))
     web.montar(app, token=token, host=host, porta=port, ferramentas=_nomes_das_ferramentas())
     return app
 
