@@ -18,7 +18,9 @@ from .indexer import index_vault
 def cmd_index(args) -> int:
     cfg = load_config({"model": args.model, "ollama_url": args.ollama})
     print(f"Vault: {cfg.vault}\nIndice: {cfg.db_path}\nModelo: {cfg.model} @ {cfg.ollama_url}\n")
-    report = index_vault(cfg, force=args.force, verbose=not args.quiet)
+    report = index_vault(
+        cfg, force=args.force, refazer_trechos=args.refazer_trechos, verbose=not args.quiet
+    )
     print("\n" + report.as_text())
     if report.errors and report.indexed:
         print(
@@ -631,6 +633,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     p = sub.add_parser("index", help="indexa o vault (incremental por padrao)")
     p.add_argument("--force", action="store_true", help="reindexa tudo do zero")
+    p.add_argument("--refazer-trechos", action="store_true",
+                   help="corta todas as notas de novo (depois de mudar o recorte), "
+                        "reaproveitando o vetor de trecho que nao mudou")
     p.add_argument("--quiet", action="store_true")
     p.set_defaults(func=cmd_index)
 

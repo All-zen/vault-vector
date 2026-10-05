@@ -532,6 +532,28 @@ def main() -> int:
             falhou = esperar(tarefas.iniciar("x", quebra))
         check("erro na tarefa chega a quem consulta", falhou.erro == "Ollama sumiu")
 
+        # --- refazer trechos ---
+        # Mudar o recorte pede cortar de novo notas que nao mudaram no disco,
+        # mas o modelo e o mesmo: trecho com o mesmo texto reaproveita o vetor.
+        embeddados = []
+        embed_original = _StubEmbedder.embed
+        _StubEmbedder.embed = lambda self, textos: (embeddados.extend(textos), embed_original(self, textos))[1]
+        try:
+            total_antes = sum(1 for _ in cfg.vault.rglob("*.md"))
+            alvo_original = cfg.target_chars
+            cfg.target_chars, cfg.min_chars = 120, 40
+            rep = index_vault(cfg, refazer_trechos=True, verbose=False)
+            check("refazer trechos reprocessa nota que nao mudou no disco",
+                  rep.indexed >= 5 and rep.indexed < total_antes, rep.as_text())
+            embeddados.clear()
+            rep = index_vault(cfg, refazer_trechos=True, verbose=False)
+            check("recorte igual de novo: nenhum vetor recalculado",
+                  rep.indexed >= 5 and not embeddados, f"{len(embeddados)} embeddados")
+        finally:
+            _StubEmbedder.embed = embed_original
+            cfg.target_chars, cfg.min_chars = alvo_original, 600
+            index_vault(cfg, refazer_trechos=True, verbose=False)
+
         # --- gravacao do config ---
         # O config.toml e comentado a mao, e os comentarios explicam de onde
         # veio cada numero. Gravar pela interface nao pode apagar isso.

@@ -338,10 +338,11 @@ def indexar(d: Dados) -> dict:
 
     cfg = contexto.config()
     forcar = d.booleano("forcar")
+    refazer = d.booleano("refazer_trechos")
 
     def trabalho(t):
         rep = index_vault(
-            cfg, force=forcar, verbose=False,
+            cfg, force=forcar, refazer_trechos=refazer, verbose=False,
             progress=lambda rel, r: t.andamento(r.processadas, r.total, rel),
         )
         return {
