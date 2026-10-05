@@ -11,6 +11,7 @@ import { Nota } from "./telas/Nota";
 import { Saude } from "./telas/Saude";
 import { Modelos } from "./telas/Modelos";
 import { Ajustes } from "./telas/Ajustes";
+import { Calibrar } from "./telas/Calibrar";
 import css from "./App.module.css";
 
 function Telas({ rota }: { rota: Rota }) {
@@ -25,6 +26,8 @@ function Telas({ rota }: { rota: Rota }) {
       return <Modelos />;
     case "ajustes":
       return <Ajustes />;
+    case "calibrar":
+      return <Calibrar />;
     default:
       return (
         <div className={css.vazio}>

@@ -1,0 +1,24 @@
+.card { display: flex; flex-direction: column; gap: 16px; }
+.grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 16px; }
+
+.matriz { width: 100%; border-collapse: collapse; }
+.matriz th { padding: 10px 12px; text-align: center; border-bottom: 1px solid var(--border-strong); }
+.matriz td { padding: 12px; text-align: center; border-bottom: 1px solid var(--border-subtle); transition: background var(--dur-slow); }
+.rotuloLinha { text-align: left !important; font: 600 13px/1 var(--font-sans); color: var(--text-strong); white-space: nowrap; }
+.critica:has(.ruim) { background: var(--baixa-bg); }
+.critica:has(.bom) { background: var(--alta-bg); }
+.num { display: inline-block; font: 600 20px/1 var(--font-mono); color: var(--text-strong); animation: vv-pop 320ms var(--ease-out); }
+.bom { color: var(--alta-fg); }
+.ruim { color: var(--baixa-fg); }
+.ok, .alerta, .nota { margin: 0; font: var(--type-small); text-wrap: pretty; }
+.ok { color: var(--alta-fg); }
+.alerta { color: var(--baixa-fg); }
+.nota { color: var(--text-muted); }
+
+.valores { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
+.valores .rotulo { margin-bottom: 6px; }
+.valorLo, .valorHi { font: 600 28px/1 var(--font-mono); }
+.valorLo { color: var(--media-fg); }
+.valorHi { color: var(--alta-fg); }
+.botoes { display: flex; gap: 8px; flex-wrap: wrap; }
+.comandos { display: flex; flex-direction: column; gap: 8px; }

@@ -7,9 +7,11 @@
 }
 
 .valores { position: relative; height: 16px; font: 500 11px/1 var(--font-mono); }
-.valores span { position: absolute; transform: translateX(-50%); }
-.vLo { color: var(--media-fg); }
-.vHi { color: var(--alta-fg); }
+.valores span { position: absolute; white-space: nowrap; }
+/* Cada rotulo fica do lado de fora da sua linha: com as duas proximas,
+   centralizar sobrepunha os numeros. */
+.vLo { color: var(--media-fg); transform: translateX(calc(-100% - 4px)); }
+.vHi { color: var(--alta-fg); transform: translateX(4px); }
 
 .rotulos {
   display: flex;
