@@ -41,5 +41,43 @@ jobs:
           ls /tmp/vault-ci/99-Diario/*.md > /dev/null
           echo "esqueleto criado e completo"
 
+      # O app de desktop so roda no Windows, mas o modulo tem que importar
+      # em qualquer lugar: as dependencias de GUI entram so dentro do main.
+      - name: Modulo do app de desktop importa sem GUI
+        run: python -c "import vault_rag.desktop, vault_rag.autostart"
+
       - name: Nenhum dado pessoal no repositorio
         run: python ferramentas/verificar_vazamento.py
+
+  interface:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ui
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: ui/package-lock.json
+
+      - name: Instalar
+        run: npm ci --no-audit --no-fund
+
+      - name: Tipos
+        run: npm run typecheck
+
+      - name: Testes
+        run: npm test
+
+      - name: Build
+        run: npm run build
+
+      # O Python serve o index.html trocando a meta tag do token por
+      # comparacao exata. Se o build mudar a tag, o app abre sem token e
+      # toda chamada da API volta 401: melhor quebrar aqui.
+      - name: Meta tag do token intacta no build
+        run: grep -q '<meta name="vv-token" content="">' ../vault_rag/static/index.html

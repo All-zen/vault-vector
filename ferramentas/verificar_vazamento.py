@@ -38,8 +38,11 @@ PERMITIDO = {
     "e-mail": re.compile(r"noreply@|exemplo\.com|example\.com"),
 }
 
-IGNORAR_DIR = {".git", ".venv", "__pycache__", ".github", "node_modules"}
-EXTENSOES = {".py", ".toml", ".md", ".ps1", ".yml", ".yaml", ".json", ".txt", ".cfg"}
+# static/ e o build da interface: codigo minificado de terceiros, gerado a
+# partir de ui/, que ja e verificado na fonte.
+IGNORAR_DIR = {".git", ".venv", "__pycache__", ".github", "node_modules", "static"}
+EXTENSOES = {".py", ".toml", ".md", ".ps1", ".yml", ".yaml", ".json", ".txt", ".cfg",
+             ".ts", ".tsx", ".css", ".html"}
 
 
 def gitignore_furado() -> list[str]:
