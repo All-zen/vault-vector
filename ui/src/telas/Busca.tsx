@@ -90,10 +90,16 @@ function Aviso({ r }: { r: Resultado }) {
     );
   }
   if (r.faixa === "baixa") {
+    // O motivo muda conforme o literal casou ou nao: com casamento, a
+    // palavra existe no vault com outro sentido; sem, o que aparece e so o
+    // menos distante de um vault que nao fala disso.
+    const literal = r.hits.some((h) => h.fts_rank != null);
     return (
       <Callout tone="baixa" title={`Confiança baixa · sim ${decimal(r.sim)}${juiz}`}>
-        Nenhum trecho tem relação de sentido com a pergunta. O que segue casou por palavra literal, e quase sempre a palavra
-        existe no vault com outro sentido. Trate como “o vault não responde isso”.
+        {literal
+          ? "Nenhum trecho tem relação de sentido com a pergunta. O que segue casou por palavra literal, e quase sempre a palavra existe no vault com outro sentido."
+          : "Nenhum trecho tem relação de sentido com a pergunta, e nenhuma palavra dela aparece no vault. O que segue são só os trechos menos distantes."}{" "}
+        Trate como “o vault não responde isso”.
       </Callout>
     );
   }
