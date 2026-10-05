@@ -6,14 +6,16 @@ import { AppMark, Button, Callout, ToastProvider } from "./componentes/ds";
 import { AppContexto, type ContextoApp } from "./lib/app";
 import { useDados } from "./lib/dados";
 import { navegar, useRota, type Rota } from "./lib/rota";
+import { Ajustes } from "./telas/Ajustes";
 import { Busca } from "./telas/Busca";
+import { Calibrar } from "./telas/Calibrar";
+import { Conectar } from "./telas/Conectar";
+import { Modelos } from "./telas/Modelos";
 import { Nota } from "./telas/Nota";
 import { Saude } from "./telas/Saude";
-import { Modelos } from "./telas/Modelos";
-import { Ajustes } from "./telas/Ajustes";
-import { Calibrar } from "./telas/Calibrar";
 import css from "./App.module.css";
 
+/** Uma tela por rota. Sem default: rota nova sem tela nao compila. */
 function Telas({ rota }: { rota: Rota }) {
   switch (rota.tela) {
     case "buscar":
@@ -28,14 +30,8 @@ function Telas({ rota }: { rota: Rota }) {
       return <Ajustes />;
     case "calibrar":
       return <Calibrar />;
-    default:
-      return (
-        <div className={css.vazio}>
-          <Callout title="Tela ainda não ligada">
-            A rota <code>{rota.tela}</code> existe, mas a tela ainda não foi construída.
-          </Callout>
-        </div>
-      );
+    case "conectar":
+      return <Conectar />;
   }
 }
 

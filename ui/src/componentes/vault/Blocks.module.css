@@ -11,6 +11,7 @@
 }
 .prompt { color: var(--term-accent); user-select: none; }
 .comando { flex: 1; min-width: 0; overflow-x: auto; white-space: pre; }
+.quebra { white-space: pre-wrap; overflow-wrap: anywhere; }
 .comentario { color: var(--term-dim); }
 .copiar {
   display: inline-flex;

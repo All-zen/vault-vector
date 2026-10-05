@@ -4,7 +4,6 @@
 
 .centro { height: 100%; display: flex; align-items: center; justify-content: center; padding: 24px; }
 .falhou { width: min(520px, 100%); display: flex; flex-direction: column; gap: 16px; align-items: flex-start; }
-.vazio { max-width: 720px; margin: 0 auto; padding: 40px; }
 
 /* Molde de tela, usado por todas: largura de leitura e respiro. */
 :global(.tela-conteudo) {

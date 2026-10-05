@@ -6,10 +6,14 @@ import css from "./Blocks.module.css";
 interface CommandProps {
   command: string;
   comment?: string;
+  /** O que aparece na tela, quando difere do que e copiado (token mascarado). */
+  display?: string;
+  /** Quebra linha na tela em vez de rolar: para comando longo que precisa ser lido inteiro. */
+  wrap?: boolean;
 }
 
 /** O mesmo que a tela faz, no terminal. Copiavel. */
-export function CommandBlock({ command, comment }: CommandProps) {
+export function CommandBlock({ command, comment, display, wrap }: CommandProps) {
   const [copiado, setCopiado] = useState(false);
   const copiar = async () => {
     try {
@@ -25,8 +29,8 @@ export function CommandBlock({ command, comment }: CommandProps) {
       <span className={css.prompt} aria-hidden>
         &gt;
       </span>
-      <span className={css.comando}>
-        {command}
+      <span className={`${css.comando} ${wrap ? css.quebra : ""}`}>
+        {display ?? command}
         {comment && <span className={css.comentario}>{"   # " + comment}</span>}
       </span>
       <button type="button" className={`${css.copiar} ${copiado ? css.copiado : ""}`} onClick={copiar} aria-label="Copiar comando">
