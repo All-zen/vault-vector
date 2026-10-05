@@ -183,6 +183,12 @@ def cmd_serve(args) -> int:
     return 0
 
 
+def cmd_app(args) -> int:
+    from .desktop import main as app_main
+
+    return app_main(["--escondido"] if args.escondido else [])
+
+
 def cmd_token(args) -> int:
     """Mostra (ou cria) o token do modo HTTP, e o bloco de config pronto."""
     from .server import token_do_projeto
@@ -674,6 +680,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--sem-token", action="store_true", help="desliga a exigencia de token")
     p.set_defaults(func=cmd_serve)
 
+    p = sub.add_parser("app", help="abre o app de desktop: janela, bandeja e servidor")
+    p.add_argument("--escondido", action="store_true", help="so o icone da bandeja")
+    p.set_defaults(func=cmd_app)
+
     p = sub.add_parser(
         "servico",
         help="igual a 'serve --http', mas e o que a tarefa agendada chama: "
@@ -708,7 +718,7 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def abrir_log_do_servico():
+def abrir_log_do_servico(nome: str = "servico.log"):
     """Troca stdout/stderr por um arquivo, e devolve o caminho.
 
     Um gui-script no Windows roda sob pythonw.exe, e la sys.stdout e
@@ -722,11 +732,11 @@ def abrir_log_do_servico():
     from pathlib import Path
 
     raiz = Path(__file__).resolve().parent.parent
-    log = raiz / "servico.log"
+    log = raiz / nome
     try:
         # Um servico que roda meses nao pode virar um log de gigabytes.
         if log.is_file() and log.stat().st_size > 2_000_000:
-            log.replace(raiz / "servico.log.anterior")
+            log.replace(raiz / f"{nome}.anterior")
         fluxo = open(log, "a", encoding="utf-8", errors="replace", buffering=1)
     except OSError:
         # Sem lugar para escrever, o que importa e o servico subir mesmo assim.

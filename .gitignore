@@ -12,6 +12,8 @@ config.toml
 .token
 servico.log
 servico.log.anterior
+app.log
+app.log.anterior
 # o modelo de teste cita titulos das suas notas
 perguntas*.txt
 
