@@ -21,3 +21,9 @@ __pycache__/
 *.egg-info/
 build/
 dist/
+
+# --- interface ------------------------------------------------------------
+# A interface compilada vai para dentro do pacote, mas e gerada: o CI e o
+# setup.ps1 compilam a partir de ui/.
+vault_rag/static/
+ui/node_modules/
