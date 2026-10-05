@@ -285,6 +285,12 @@ def main() -> int:
         check("nota-indice e penalizada em pergunta factual",
               all(h.boost < 1.0 for h in moc) if moc else True,
               str([(h.path, h.boost) for h in moc]))
+        check("o motivo da penalidade vai junto com o hit",
+              all(any("factual" in nome for nome, _ in h.fatores) for h in moc),
+              str([h.fatores for h in moc]))
+        check("o produto dos fatores e o boost",
+              all(abs(np.prod([x for _, x in h.fatores]) - h.boost) < 0.01 for h in hits),
+              str([(h.boost, h.fatores) for h in hits]))
 
         maior = max(len(h.text) for h in api.search(cfg, "comparativo item preco", top_k=10)) \
             if api.search(cfg, "comparativo item preco", top_k=10) else 0

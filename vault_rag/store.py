@@ -12,11 +12,12 @@ ate la, forca bruta ganha em simplicidade sem perder nada em latencia.
 
 from __future__ import annotations
 
+import math
 import re
 import sqlite3
 import time
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
@@ -98,6 +99,9 @@ class SearchHit:
     note_ts: float | None = None
     backlinks: int = 0
     boost: float = 1.0
+    # O boost decomposto: (motivo, multiplicador). O produto e o boost acima.
+    fatores: list[tuple[str, float]] = field(default_factory=list)
+    mtime: float | None = None
     # Similaridade de cosseno bruta do lado vetorial. E a UNICA medida de
     # relevancia absoluta que existe no pipeline: o RRF so conhece posicao, e
     # posicao num corpus sem resposta ainda produz um primeiro lugar.
@@ -169,18 +173,25 @@ def fts_query(text: str) -> str:
     return " OR ".join(dict.fromkeys(tokens))
 
 
-def rank_boost(row, *, temporal: bool, navegacao: bool, now: float) -> float:
-    """Multiplicador aplicado ao score do RRF a partir dos metadados da nota.
+def fatores_de_boost(row, *, temporal: bool, navegacao: bool, now: float) -> list[tuple[str, float]]:
+    """Multiplicadores aplicados ao score do RRF a partir dos metadados da nota.
 
     Fatores modestos de proposito: o objetivo e desempatar e corrigir vies
     obvio, nao reescrever o ranking por cima da relevancia textual.
+
+    Cada fator vai com o nome do motivo, e nao so o produto, para a
+    interface mostrar por que um resultado subiu ou desceu. Fator neutro
+    (1.0) nao entra na lista.
     """
-    peso = 1.0
+    fatores: list[tuple[str, float]] = []
     kind = (row["note_kind"] or "nota") if "note_kind" in row.keys() else "nota"
 
     # Nota-indice e lista de links: otima para navegar, ruim como resposta.
     if kind == "indice":
-        peso *= 1.30 if navegacao else 0.65
+        fatores.append(
+            ("índice · pergunta de navegação", 1.30) if navegacao
+            else ("índice · pergunta factual", 0.65)
+        )
 
     # Data no nome e a data do evento; mtime e so a ultima edicao. Uma spec
     # editada ontem nao e resposta para "o que aconteceu recentemente", entao
@@ -194,17 +205,19 @@ def rank_boost(row, *, temporal: bool, navegacao: bool, now: float) -> float:
         # 1.0 para hoje, caindo linearmente ate 0 em dois anos.
         frescor = max(0.0, 1.0 - (now - float(ts)) / (730 * 86400))
         if temporal:
-            peso *= 1.0 + 0.45 * frescor * confianca
+            origem = "data do nome" if confianca == 1.0 else "mtime, peso 1/3"
+            fatores.append((f"frescor · {origem}", 1.0 + 0.45 * frescor * confianca))
         elif kind == "diario":
             # Diario e inerentemente datado: o de ontem vale mais que o de
             # um ano atras mesmo sem a pergunta pedir isso.
-            peso *= 1.0 + 0.15 * frescor
+            fatores.append(("diário · frescor", 1.0 + 0.15 * frescor))
 
     if "backlinks" in row.keys() and row["backlinks"]:
         # Centralidade: nota citada por muitas outras costuma ser a canonica.
-        peso *= 1.0 + min(int(row["backlinks"]), 10) * 0.012
+        n = int(row["backlinks"])
+        fatores.append((f"backlinks {n}", 1.0 + min(n, 10) * 0.012))
 
-    return peso
+    return [(nome, x) for nome, x in fatores if x != 1.0]
 
 
 def path_tokens(rel_path: str) -> str:
@@ -500,6 +513,7 @@ class Store:
 
         # Reordena aplicando os metadados por cima do score textual.
         boosts: dict[int, float] = {}
+        fatores: dict[int, list[tuple[str, float]]] = {}
         if use_metadata:
             temporal, navegacao = query_flags(query)
             now = time.time()
@@ -507,7 +521,10 @@ class Store:
                 row = by_id.get(cid)
                 if row is None:
                     continue
-                peso = rank_boost(row, temporal=temporal, navegacao=navegacao, now=now)
+                fatores[cid] = fatores_de_boost(
+                    row, temporal=temporal, navegacao=navegacao, now=now
+                )
+                peso = math.prod(x for _, x in fatores[cid])
                 boosts[cid] = peso
                 fused[cid] *= peso
 
@@ -554,6 +571,8 @@ class Store:
                     note_ts=row["note_ts"],
                     backlinks=row["backlinks"] or 0,
                     boost=round(boosts.get(cid, 1.0), 3),
+                    fatores=[(nome, round(x, 3)) for nome, x in fatores.get(cid, [])],
+                    mtime=row["mtime"],
                     vec_score=(
                         round(vec_sim[cid], 4) if cid in vec_sim else None
                     ),
