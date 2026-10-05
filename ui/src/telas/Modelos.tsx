@@ -100,7 +100,7 @@ function Instalados({ estado, aoMudar }: { estado: EstadoOllama; aoMudar: () => 
     await api.gravarConfig({ model: m.nome, ...(m.dims ? { embed_dim: m.dims } : {}) });
     setOcupado(true);
     // O index_vault ve que o modelo mudou e refaz tudo sozinho.
-    await reindex.iniciar(() => api.indexar(true));
+    await reindex.iniciar(() => api.indexar({ forcar: true }));
   };
 
   const juiz = async (nome: string) => {

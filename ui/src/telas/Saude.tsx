@@ -43,7 +43,7 @@ export function Saude() {
   const indexar = (forcar: boolean) => {
     setConfirmarTudo(false);
     setOcupado(true);
-    void indexacao.iniciar(() => api.indexar(forcar));
+    void indexacao.iniciar(() => api.indexar({ forcar }));
   };
 
   const t = indexacao.tarefa;

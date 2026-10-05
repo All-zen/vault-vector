@@ -1,4 +1,5 @@
 import { numero } from "../../lib/formato";
+import { previa } from "../../lib/markdown";
 import css from "./Visuals.module.css";
 
 interface IndexGridProps {
@@ -109,8 +110,8 @@ export function ChunkPreview({ trechos, target }: { trechos: Trecho[]; target: n
                 <i style={{ width: `${Math.min(100, (t.chars / target) * 100)}%`, background: t.chars > target ? "var(--media-fg)" : cor }} />
               </span>
             </div>
-            {t.heading && <div className={css.trilha}>{t.heading}</div>}
-            <div className={css.inicio}>{t.inicio}</div>
+            {t.heading && <div className={css.trilha}>{t.heading.split(" > ").join(" › ")}</div>}
+            <div className={css.inicio}>{previa(t.inicio)}</div>
           </div>
         );
       })}

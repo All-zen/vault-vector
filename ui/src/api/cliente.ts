@@ -94,7 +94,8 @@ export const api = {
     post<Gravacao>("/api/nota/restaurar", { caminho, versao, mtime }),
 
   saude: () => get<Saude>("/api/saude"),
-  indexar: (forcar = false) => post<Tarefa<ResultadoIndexacao>>("/api/indexar", { forcar }),
+  indexar: (modo: { forcar?: boolean; refazer_trechos?: boolean } = {}) =>
+    post<Tarefa<ResultadoIndexacao>>("/api/indexar", modo),
   tarefa: <R, P>(id: string) => get<Tarefa<R, P>>(`/api/tarefas/${id}`),
 
   ollama: (url?: string) => get<EstadoOllama>("/api/ollama", { url }),

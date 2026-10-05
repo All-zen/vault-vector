@@ -559,7 +559,9 @@ def recorte(d: Dados) -> dict:
                 "heading": c.heading_path,
                 "linha": c.start_line,
                 "chars": len(c.text),
-                "inicio": " ".join(c.text.split())[:160],
+                # Com as quebras de linha: quem mostra decide como limpar o
+                # markdown, e sem elas titulo e texto viram uma linha so.
+                "inicio": c.text[:400],
             }
             for c in nota_.chunks
         ],
