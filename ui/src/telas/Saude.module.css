@@ -1,0 +1,15 @@
+.cabecalho { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; }
+.cabecalho > :first-child { flex: 1; }
+.acoes { display: flex; gap: 8px; }
+
+.numeros { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
+.numero { display: flex; flex-direction: column; gap: 4px; }
+.valor { font: 600 28px/1 var(--font-sans); letter-spacing: -0.02em; color: var(--text-strong); }
+.rotulo { font: var(--type-small); color: var(--text-muted); }
+
+.mapa { display: flex; flex-direction: column; gap: 14px; }
+.legenda { display: flex; flex-wrap: wrap; gap: 16px; font: var(--type-small); color: var(--text-muted); }
+.legenda span { display: flex; align-items: center; gap: 6px; }
+.legenda i { width: 9px; height: 9px; border-radius: 2px; }
+.removidas { font: var(--type-small); color: var(--text-faint); }
+.texto { margin: 0; font: var(--type-small); color: var(--text-body); }

@@ -153,6 +153,14 @@ export interface Tarefa<R = unknown, P = unknown> {
   segundos: number;
 }
 
+export interface ResultadoIndexacao {
+  texto: string;
+  indexadas: number;
+  removidas: number;
+  trechos: number;
+  erros: string[];
+}
+
 export interface ModeloOllama {
   nome: string;
   tipo: "embedding" | "instrucao";

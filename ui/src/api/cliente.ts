@@ -10,6 +10,7 @@ import type {
   NotaResumo,
   Recorte,
   ResultadoCalibracao,
+  ResultadoIndexacao,
   ResultadoParalelismo,
   Saude,
   Sistema,
@@ -91,7 +92,7 @@ export const api = {
     post<Gravacao>("/api/nota/restaurar", { caminho, versao, mtime }),
 
   saude: () => get<Saude>("/api/saude"),
-  indexar: (forcar = false) => post<Tarefa<{ texto: string; indexadas: number }>>("/api/indexar", { forcar }),
+  indexar: (forcar = false) => post<Tarefa<ResultadoIndexacao>>("/api/indexar", { forcar }),
   tarefa: <R, P>(id: string) => get<Tarefa<R, P>>(`/api/tarefas/${id}`),
 
   ollama: (url?: string) => get<EstadoOllama>("/api/ollama", { url }),
